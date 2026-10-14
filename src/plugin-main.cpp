@@ -1,6 +1,7 @@
 #include "plugin-main.hpp"
 #include "plugin-macros.h"
 #include "audio/surround-filter.hpp"
+#include "audio/global-surround.hpp"
 #include "audio/volmeter-hook.hpp"
 #include "frontend/dock-manager.hpp"
 
@@ -28,6 +29,9 @@ bool obs_module_load(void) {
     // Install inline hook so OBS Audio Mixer displays 6 or 8 bars for surround upmix sources
     AeriaSurround::InstallVolmeterHook();
 
+    // Initialize global surround master output engine
+    AeriaSurround::GlobalSurround::Instance().Init();
+
     // Register frontend event callback
     obs_frontend_add_event_callback(FrontendEventCallback, nullptr);
 
@@ -48,6 +52,7 @@ bool obs_module_load(void) {
 void obs_module_unload(void) {
     blog(LOG_INFO, "Unloading %s", PLUGIN_NAME);
     obs_frontend_remove_event_callback(FrontendEventCallback, nullptr);
+    AeriaSurround::GlobalSurround::Instance().Shutdown();
     AeriaSurround::RemoveVolmeterHook();
     AeriaSurround::DockManager::Instance().Shutdown();
 }

@@ -106,6 +106,54 @@ void UpmixEngine::Process(float* const* channel_data, size_t input_channels, siz
         return;
     }
 
+    // Mono Surround mode: sum all input channels into mono, then distribute equally to all channels
+    if (params_.mode == UpmixMode::MonoSurround) {
+        if (scratch_[0].size() < frames) {
+            scratch_[0].resize(frames);
+        }
+        float* mono_sum = scratch_[0].data();
+        std::fill(mono_sum, mono_sum + frames, 0.0f);
+
+        size_t valid_inputs = 0;
+        for (size_t c = 0; c < input_channels && c < 8; ++c) {
+            if (channel_data[c]) {
+                const float* ch = channel_data[c];
+                for (uint32_t f = 0; f < frames; ++f) {
+                    mono_sum[f] += ch[f];
+                }
+                valid_inputs++;
+            }
+        }
+
+        if (valid_inputs > 0) {
+            float inv_in = 1.0f / static_cast<float>(valid_inputs);
+            for (uint32_t f = 0; f < frames; ++f) {
+                mono_sum[f] *= inv_in;
+            }
+        }
+
+        size_t out_count = std::min(output_channels, size_t(8));
+        for (size_t c = 0; c < out_count; ++c) {
+            if (channel_data[c]) {
+                float g = mul[c];
+                for (uint32_t f = 0; f < frames; ++f) {
+                    channel_data[c][f] = mono_sum[f] * g;
+                }
+            }
+        }
+
+        // Apply solo preview if active
+        if (params_.solo_channel >= 0) {
+            size_t solo = static_cast<size_t>(params_.solo_channel);
+            for (size_t c = 0; c < output_channels; ++c) {
+                if (c != solo && channel_data[c]) {
+                    std::fill(channel_data[c], channel_data[c] + frames, 0.0f);
+                }
+            }
+        }
+        return;
+    }
+
     // Check if input is already multichannel (e.g., C or LFE or Surrounds already present and active)
     bool already_multichannel = false;
     if (input_channels >= 6 && channel_data[2] && channel_data[3]) {

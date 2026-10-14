@@ -25,6 +25,10 @@ public:
     void DetachFilter();
     void RefreshTitle();
 
+protected:
+    void showEvent(QShowEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
+
 private slots:
     void OnMeterTimer();
     void OnPanChanged(float x, float y);

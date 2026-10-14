@@ -22,7 +22,8 @@ enum class UpmixMode {
     Auto = 0,       // Detect from OBS master audio output
     Force5Point1 = 1,
     Force7Point1 = 2,
-    Direct = 3      // Gain adjustment only, pass through original
+    Direct = 3,     // Gain adjustment only, pass through original
+    MonoSurround = 4 // Sum to mono and distribute equally across all channels (speaker test)
 };
 
 inline const char* ChannelName(ChannelIndex ch) {

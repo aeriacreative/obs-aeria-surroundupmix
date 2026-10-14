@@ -18,6 +18,10 @@ public:
     void SetPan(float x, float y);
     QPointF GetPan() const { return QPointF(pan_x_, pan_y_); }
 
+    void SetSoloState(int ch, bool latched = false);
+    int GetSoloChannel() const { return solo_active_channel_; }
+    bool IsSoloLatched() const { return solo_latched_; }
+
     void SetChannelLevels(const ChannelMeterData levels[METER_MAX_CHANNELS], size_t active_channels);
 
 signals:
@@ -41,6 +45,7 @@ private:
     float pan_y_ = 0.0f; // [-1.0, 1.0]
     bool dragging_ = false;
     int solo_active_channel_ = -1;
+    bool solo_latched_ = false;
 
     ChannelMeterData levels_[METER_MAX_CHANNELS];
     size_t active_channels_ = 8;

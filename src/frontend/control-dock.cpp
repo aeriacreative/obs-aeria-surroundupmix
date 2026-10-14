@@ -72,10 +72,25 @@ void ControlDockWidget::RefreshTitle() {
         setWindowTitle(QString::fromUtf8(disp.c_str()));
         if (header_title_) {
             header_title_->setText(QString::fromUtf8(disp.c_str()));
+            header_title_->setToolTip(QString::fromUtf8(disp.c_str()));
         }
     } else {
         setWindowTitle("Sorround Control");
     }
+}
+
+void ControlDockWidget::showEvent(QShowEvent* event) {
+    QDockWidget::showEvent(event);
+    if (filter_state_ && !filter_state_->IsDockVisible()) {
+        filter_state_->SetDockVisible(true);
+    }
+}
+
+void ControlDockWidget::closeEvent(QCloseEvent* event) {
+    if (filter_state_ && filter_state_->IsDockVisible()) {
+        filter_state_->SetDockVisible(false);
+    }
+    QDockWidget::closeEvent(event);
 }
 
 void ControlDockWidget::BuildUI() {
@@ -157,6 +172,7 @@ void ControlDockWidget::BuildUI() {
     mode_combo_->addItem("Force 5.1 Surround");
     mode_combo_->addItem("Force 7.1 Surround");
     mode_combo_->addItem("Direct Pass-Through");
+    mode_combo_->addItem("Mono Surround (Speaker Balance Test)");
     connect(mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ControlDockWidget::OnModeChanged);
     mode_row->addWidget(mode_combo_, 1);
     root_layout->addLayout(mode_row);
@@ -168,8 +184,9 @@ void ControlDockWidget::BuildUI() {
         if (filter_state_) {
             filter_state_->SetSoloChannel(static_cast<int>(ch));
         }
+        bool latched = panner_->IsSoloLatched();
         for (auto* s : strips_) {
-            s->SetSoloHighlighted(s->GetChannel() == ch);
+            s->SetSoloHighlighted(s->GetChannel() == ch, latched);
         }
     });
     connect(panner_, &CircularSpeakerWidget::SoloChannelReleased, this, [this]() {
@@ -177,7 +194,7 @@ void ControlDockWidget::BuildUI() {
             filter_state_->SetSoloChannel(-1);
         }
         for (auto* s : strips_) {
-            s->SetSoloHighlighted(false);
+            s->UnlatchSolo();
         }
     });
     root_layout->addWidget(panner_, 1, Qt::AlignCenter);
@@ -214,13 +231,13 @@ void ControlDockWidget::BuildUI() {
             if (filter_state_) {
                 filter_state_->SetSoloChannel(static_cast<int>(ch));
             }
-            panner_->update();
+            panner_->SetSoloState(static_cast<int>(ch), true);
         });
         connect(strip, &ChannelStripWidget::SoloReleased, this, [this]() {
             if (filter_state_) {
                 filter_state_->SetSoloChannel(-1);
             }
-            panner_->update();
+            panner_->SetSoloState(-1, false);
         });
         strips_layout->addWidget(strip);
         strips_.push_back(strip);

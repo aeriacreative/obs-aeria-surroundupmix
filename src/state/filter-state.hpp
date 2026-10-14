@@ -33,9 +33,15 @@ public:
     void SetPanning(float x, float y);
     void SetMode(UpmixMode mode);
     void SetSpread(float center, float surround);
+    void SetCenterSpread(float center);
+    void SetSurroundSpread(float surround);
     void SetLfeCutoff(float cutoff_hz);
     void SetSoloChannel(int ch);
     int GetSoloChannel() const;
+    void ResetAll();
+
+    bool IsDockVisible() const { return dock_visible_; }
+    void SetDockVisible(bool visible);
 
     void SetParamsFromUI(const UpmixParams& params, bool sync_obs_settings = true);
 
@@ -46,6 +52,7 @@ public:
 private:
     std::string instance_id_;
     obs_source_t* filter_context_ = nullptr;
+    bool dock_visible_ = false;
 
     mutable std::mutex param_mutex_;
     UpmixParams params_;

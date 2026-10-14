@@ -39,7 +39,9 @@ public:
 
     void SetMeterData(const ChannelMeterData& data);
     void SetChannelActive(bool active);
-    void SetSoloHighlighted(bool soloed);
+    void SetSoloHighlighted(bool soloed, bool latched = false);
+    bool IsSoloLatched() const;
+    void UnlatchSolo();
 
 signals:
     void GainChanged(ChannelIndex ch, float db);

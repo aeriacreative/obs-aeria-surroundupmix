@@ -44,6 +44,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   src/audio/upmix-engine.cpp
   src/audio/surround-filter.hpp
   src/audio/surround-filter.cpp
+  src/audio/global-surround.hpp
+  src/audio/global-surround.cpp
   src/audio/volmeter-hook.hpp
   src/audio/volmeter-hook.cpp
   src/frontend/circular-speaker-widget.hpp

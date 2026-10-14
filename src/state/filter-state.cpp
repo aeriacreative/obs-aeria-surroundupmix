@@ -74,6 +74,32 @@ void FilterState::LoadSettings(obs_data_t* settings) {
     double cutoff = obs_data_get_double(settings, S_LFE_CUTOFF);
     p.lfe_cutoff_hz = (cutoff > 10.0) ? static_cast<float>(cutoff) : 120.0f;
 
+    const char* saved_id = obs_data_get_string(settings, "dock_id");
+    if (saved_id && *saved_id) {
+        instance_id_ = saved_id;
+    } else {
+        std::string parent_name;
+        obs_source_t* parent = obs_filter_get_parent(filter_context_);
+        if (parent) {
+            const char* pn = obs_source_get_name(parent);
+            if (pn) parent_name = pn;
+        }
+        std::string filter_name;
+        if (filter_context_) {
+            const char* fn = obs_source_get_name(filter_context_);
+            if (fn) filter_name = fn;
+        }
+        std::hash<std::string> hasher;
+        size_t h = hasher(parent_name + "/" + filter_name);
+        std::ostringstream ss;
+        ss << "surround_ctrl_" << std::hex << h;
+        instance_id_ = ss.str();
+    }
+
+    if (obs_data_has_user_value(settings, "dock_visible")) {
+        dock_visible_ = obs_data_get_bool(settings, "dock_visible");
+    }
+
     {
         std::lock_guard<std::mutex> lock(param_mutex_);
         params_ = p;
@@ -106,6 +132,14 @@ void FilterState::SaveSettings(obs_data_t* settings) {
     obs_data_set_double(settings, S_CENTER_SPREAD, p.center_spread);
     obs_data_set_double(settings, S_SURROUND_SPREAD, p.surround_spread);
     obs_data_set_double(settings, S_LFE_CUTOFF, p.lfe_cutoff_hz);
+
+    obs_data_set_string(settings, "dock_id", instance_id_.c_str());
+    obs_data_set_bool(settings, "dock_visible", dock_visible_);
+}
+
+void FilterState::SetDockVisible(bool visible) {
+    dock_visible_ = visible;
+    SyncToObsSettings();
 }
 
 UpmixParams FilterState::GetParamsSnapshot() {
@@ -154,6 +188,33 @@ void FilterState::SetSpread(float center, float surround) {
         std::lock_guard<std::mutex> lock(param_mutex_);
         params_.center_spread = center;
         params_.surround_spread = surround;
+    }
+    SyncToObsSettings();
+    NotifyChange();
+}
+
+void FilterState::SetCenterSpread(float center) {
+    {
+        std::lock_guard<std::mutex> lock(param_mutex_);
+        params_.center_spread = center;
+    }
+    SyncToObsSettings();
+    NotifyChange();
+}
+
+void FilterState::SetSurroundSpread(float surround) {
+    {
+        std::lock_guard<std::mutex> lock(param_mutex_);
+        params_.surround_spread = surround;
+    }
+    SyncToObsSettings();
+    NotifyChange();
+}
+
+void FilterState::ResetAll() {
+    {
+        std::lock_guard<std::mutex> lock(param_mutex_);
+        params_ = UpmixParams();
     }
     SyncToObsSettings();
     NotifyChange();

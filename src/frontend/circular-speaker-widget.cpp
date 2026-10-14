@@ -44,6 +44,12 @@ void CircularSpeakerWidget::SetPan(float x, float y) {
     update();
 }
 
+void CircularSpeakerWidget::SetSoloState(int ch, bool latched) {
+    solo_active_channel_ = ch;
+    solo_latched_ = latched;
+    update();
+}
+
 void CircularSpeakerWidget::SetChannelLevels(const ChannelMeterData levels[METER_MAX_CHANNELS], size_t active_channels) {
     active_channels_ = active_channels;
     for (size_t i = 0; i < METER_MAX_CHANNELS; ++i) {
@@ -139,6 +145,13 @@ void CircularSpeakerWidget::paintEvent(QPaintEvent*) {
         p.setPen(QPen(border_col, (is_active || is_soloed) ? 2.5 : 1.0));
         p.drawEllipse(QPointF(sp_x, sp_y), node_r, node_r);
 
+        // Latched solo dashed ring indicator
+        if (is_soloed && solo_latched_) {
+            p.setBrush(Qt::NoBrush);
+            p.setPen(QPen(QColor(0, 255, 255, 240), 1.5, Qt::DashLine));
+            p.drawEllipse(QPointF(sp_x, sp_y), node_r * 1.38f, node_r * 1.38f);
+        }
+
         // Text label
         p.setPen(is_soloed ? QColor(255, 255, 255) : (is_active ? (clip ? QColor(255, 100, 100) : sp.base_color) : QColor(70, 75, 88)));
         QRectF text_rect(sp_x - node_r, sp_y - node_r, node_r * 2.0f, node_r * 2.0f);
@@ -198,11 +211,31 @@ void CircularSpeakerWidget::mousePressEvent(QMouseEvent* event) {
             float sp_y = center_y - sp.ny * (radius * 0.82f);
             float dist = std::hypot(event->position().x() - sp_x, event->position().y() - sp_y);
             if (dist <= node_r * 1.5f) {
-                solo_active_channel_ = static_cast<int>(sp.ch);
+                int ch_idx = static_cast<int>(sp.ch);
+                // If this channel was already latched in solo, single-click unlatches and releases it!
+                if (solo_latched_ && solo_active_channel_ == ch_idx) {
+                    solo_latched_ = false;
+                    solo_active_channel_ = -1;
+                    update();
+                    emit SoloChannelReleased();
+                    return;
+                }
+
+                // Regular press down
+                solo_latched_ = false;
+                solo_active_channel_ = ch_idx;
                 update();
                 emit SoloChannelPressed(sp.ch);
                 return;
             }
+        }
+
+        // If clicked elsewhere while solo was latched, unlatch and restore audio
+        if (solo_latched_) {
+            solo_latched_ = false;
+            solo_active_channel_ = -1;
+            update();
+            emit SoloChannelReleased();
         }
 
         if (interactive_) {
@@ -214,7 +247,7 @@ void CircularSpeakerWidget::mousePressEvent(QMouseEvent* event) {
 }
 
 void CircularSpeakerWidget::mouseMoveEvent(QMouseEvent* event) {
-    if (solo_active_channel_ != -1) {
+    if (solo_active_channel_ != -1 && !solo_latched_) {
         return;
     }
     if (!interactive_) return;
@@ -260,7 +293,7 @@ void CircularSpeakerWidget::mouseMoveEvent(QMouseEvent* event) {
 
 void CircularSpeakerWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        if (solo_active_channel_ != -1) {
+        if (solo_active_channel_ != -1 && !solo_latched_) {
             solo_active_channel_ = -1;
             update();
             emit SoloChannelReleased();
@@ -274,7 +307,7 @@ void CircularSpeakerWidget::mouseReleaseEvent(QMouseEvent* event) {
 
 void CircularSpeakerWidget::leaveEvent(QEvent* event) {
     QWidget::leaveEvent(event);
-    if (solo_active_channel_ != -1) {
+    if (solo_active_channel_ != -1 && !solo_latched_) {
         solo_active_channel_ = -1;
         update();
         emit SoloChannelReleased();
@@ -282,13 +315,37 @@ void CircularSpeakerWidget::leaveEvent(QEvent* event) {
 }
 
 void CircularSpeakerWidget::mouseDoubleClickEvent(QMouseEvent* event) {
-    if (!interactive_) return;
     if (event->button() == Qt::LeftButton) {
-        // Reset pan to center
-        pan_x_ = 0.0f;
-        pan_y_ = 0.0f;
-        update();
-        emit PanChanged(pan_x_, pan_y_);
+        float center_x = width() * 0.5f;
+        float center_y = height() * 0.5f;
+        float radius = std::min(width(), height()) * 0.44f;
+        float node_r = std::max(11.0f, radius * 0.095f);
+
+        // Check if double-clicked on any speaker node -> Lock/Latch Solo!
+        for (size_t i = 0; i < 8; ++i) {
+            const auto& sp = SPEAKER_LAYOUT[i];
+            if (active_channels_ <= 6 && (sp.ch == ChannelIndex::SideLeft || sp.ch == ChannelIndex::SideRight)) {
+                continue;
+            }
+            float sp_x = center_x + sp.nx * (radius * 0.82f);
+            float sp_y = center_y - sp.ny * (radius * 0.82f);
+            float dist = std::hypot(event->position().x() - sp_x, event->position().y() - sp_y);
+            if (dist <= node_r * 1.5f) {
+                solo_latched_ = true;
+                solo_active_channel_ = static_cast<int>(sp.ch);
+                update();
+                emit SoloChannelPressed(sp.ch);
+                return;
+            }
+        }
+
+        if (interactive_) {
+            // Reset pan to center
+            pan_x_ = 0.0f;
+            pan_y_ = 0.0f;
+            update();
+            emit PanChanged(pan_x_, pan_y_);
+        }
     }
 }
 

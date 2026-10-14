@@ -39,6 +39,10 @@ static void filter_update(void* data, obs_data_t* settings) {
 
     ctx->state->LoadSettings(settings);
     ctx->engine.SetParams(ctx->state->GetParamsSnapshot());
+
+    if (ctx->state->IsDockVisible() && DockManager::Instance().IsReady()) {
+        DockManager::Instance().OpenControlDock(ctx->state);
+    }
 }
 
 static bool on_open_dock_clicked(obs_properties_t*, obs_property_t*, void* priv) {
@@ -135,6 +139,7 @@ static obs_properties_t* filter_properties(void* data) {
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.Auto"), static_cast<long long>(UpmixMode::Auto));
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.5Point1"), static_cast<long long>(UpmixMode::Force5Point1));
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.7Point1"), static_cast<long long>(UpmixMode::Force7Point1));
+    obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.MonoSurround"), static_cast<long long>(UpmixMode::MonoSurround));
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.Direct"), static_cast<long long>(UpmixMode::Direct));
 
     // Panning
@@ -166,6 +171,12 @@ static obs_properties_t* filter_properties(void* data) {
     return props;
 }
 
+static void filter_save(void* data, obs_data_t* settings) {
+    auto* ctx = static_cast<SurroundFilterContext*>(data);
+    if (!ctx || !ctx->state) return;
+    ctx->state->SaveSettings(settings);
+}
+
 struct obs_source_info surround_filter_info = {
     .id             = "aeria_surround_upmix_filter",
     .type           = OBS_SOURCE_TYPE_FILTER,
@@ -177,4 +188,5 @@ struct obs_source_info surround_filter_info = {
     .get_properties = filter_properties,
     .update         = filter_update,
     .filter_audio   = filter_audio_process,
+    .save           = filter_save,
 };

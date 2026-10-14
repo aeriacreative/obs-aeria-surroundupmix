@@ -153,6 +153,34 @@ void DockManager::ShowMonitorDock() {
     }
 }
 
+void DockManager::RefreshAudioMonitoring() {
+    auto run_refresh = [this]() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto& pair : active_states_) {
+            FilterState* state = pair.second;
+            if (!state) continue;
+            obs_source_t* filter_ctx = state->GetFilterContext();
+            if (!filter_ctx) continue;
+            obs_source_t* parent = obs_filter_get_parent(filter_ctx);
+            if (!parent) continue;
+
+            if (obs_source_active(parent)) {
+                uint32_t mon_type = obs_source_get_monitoring_type(parent);
+                if (mon_type != OBS_MONITORING_TYPE_NONE) {
+                    obs_source_set_monitoring_type(parent, OBS_MONITORING_TYPE_NONE);
+                    obs_source_set_monitoring_type(parent, static_cast<enum obs_monitoring_type>(mon_type));
+                }
+            }
+        }
+    };
+
+    if (qApp) {
+        QTimer::singleShot(150, [run_refresh]() {
+            run_refresh();
+        });
+    }
+}
+
 void DockManager::OnFrontendEvent(enum obs_frontend_event event) {
     if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
         if (!main_window_) {
@@ -160,6 +188,21 @@ void DockManager::OnFrontendEvent(enum obs_frontend_event event) {
         } else {
             AddMonitorToDocksMenu();
         }
+
+        std::vector<FilterState*> states_to_open;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            for (auto& pair : active_states_) {
+                if (pair.second && pair.second->IsDockVisible()) {
+                    states_to_open.push_back(pair.second);
+                }
+            }
+        }
+        for (FilterState* st : states_to_open) {
+            OpenControlDock(st);
+        }
+    } else if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED) {
+        RefreshAudioMonitoring();
     } else if (event == OBS_FRONTEND_EVENT_EXIT) {
         Shutdown();
     }

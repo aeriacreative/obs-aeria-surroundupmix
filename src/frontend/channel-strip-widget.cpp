@@ -83,24 +83,41 @@ void MeterBarWidget::paintEvent(QPaintEvent*) {
     }
 }
 
-// Clickable label for solo preview
+// Clickable label for solo preview with latch support
 class SoloLabel : public QLabel {
 public:
     std::function<void()> on_pressed;
     std::function<void()> on_released;
+    std::function<void()> on_double_clicked;
+    bool latched = false;
     using QLabel::QLabel;
 protected:
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
+            if (latched) {
+                latched = false;
+                if (on_released) on_released();
+                event->accept();
+                return;
+            }
             if (on_pressed) on_pressed();
             event->accept();
             return;
         }
         QLabel::mousePressEvent(event);
     }
+    void mouseDoubleClickEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            latched = true;
+            if (on_double_clicked) on_double_clicked();
+            event->accept();
+            return;
+        }
+        QLabel::mouseDoubleClickEvent(event);
+    }
     void mouseReleaseEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
-            if (on_released) on_released();
+            if (!latched && on_released) on_released();
             event->accept();
             return;
         }
@@ -108,7 +125,7 @@ protected:
     }
     void leaveEvent(QEvent* event) override {
         QLabel::leaveEvent(event);
-        if (on_released) on_released();
+        if (!latched && on_released) on_released();
     }
 };
 
@@ -125,11 +142,11 @@ ChannelStripWidget::ChannelStripWidget(ChannelIndex ch, const QString& label, co
     layout->setContentsMargins(4, 4, 4, 4);
     layout->setSpacing(4);
 
-    // Channel label (interactive solo preview)
+    // Channel label (interactive solo preview: click & hold or double-click to lock)
     auto* solo_lbl = new SoloLabel(label, this);
     solo_lbl->setAlignment(Qt::AlignCenter);
     solo_lbl->setCursor(Qt::PointingHandCursor);
-    solo_lbl->setToolTip("Click & hold to solo preview channel");
+    solo_lbl->setToolTip("Click & hold to solo preview | Double-click to lock solo | Single click to unlock");
     solo_lbl->setStyleSheet(QString(
         "QLabel {"
         "  font-weight: bold;"
@@ -141,11 +158,15 @@ ChannelStripWidget::ChannelStripWidget(ChannelIndex ch, const QString& label, co
         "  padding: 2px;"
         "}").arg(color.name()));
     solo_lbl->on_pressed = [this]() {
-        SetSoloHighlighted(true);
+        SetSoloHighlighted(true, false);
+        emit SoloPressed(ch_);
+    };
+    solo_lbl->on_double_clicked = [this]() {
+        SetSoloHighlighted(true, true);
         emit SoloPressed(ch_);
     };
     solo_lbl->on_released = [this]() {
-        SetSoloHighlighted(false);
+        SetSoloHighlighted(false, false);
         emit SoloReleased();
     };
     title_label_ = solo_lbl;
@@ -238,7 +259,7 @@ void ChannelStripWidget::SetChannelActive(bool active) {
         "}").arg(active ? color_.name() : "#505664"));
 }
 
-void ChannelStripWidget::SetSoloHighlighted(bool soloed) {
+void ChannelStripWidget::SetSoloHighlighted(bool soloed, bool latched) {
     if (soloed) {
         title_label_->setStyleSheet(QString(
             "QLabel {"
@@ -246,13 +267,24 @@ void ChannelStripWidget::SetSoloHighlighted(bool soloed) {
             "  font-size: 11px;"
             "  color: #101216;"
             "  background: %1;"
-            "  border: 1px solid #ffffff;"
+            "  border: %2;"
             "  border-radius: 3px;"
             "  padding: 2px;"
-            "}").arg(color_.name()));
+            "}").arg(color_.name()).arg(latched ? "2px solid #00ffff" : "1px solid #ffffff"));
     } else {
         SetChannelActive(isEnabled());
     }
+}
+
+bool ChannelStripWidget::IsSoloLatched() const {
+    auto* lbl = static_cast<SoloLabel*>(title_label_);
+    return lbl ? lbl->latched : false;
+}
+
+void ChannelStripWidget::UnlatchSolo() {
+    auto* lbl = static_cast<SoloLabel*>(title_label_);
+    if (lbl) lbl->latched = false;
+    SetSoloHighlighted(false, false);
 }
 
 void ChannelStripWidget::OnSliderValueChanged(int value) {

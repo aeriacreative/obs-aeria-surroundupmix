@@ -26,6 +26,8 @@ public:
     // Dock control
     void OpenControlDock(FilterState* state);
     void ShowMonitorDock();
+    bool IsReady() const { return main_window_ != nullptr; }
+    void RefreshAudioMonitoring();
 
     void OnFrontendEvent(enum obs_frontend_event event);
 
