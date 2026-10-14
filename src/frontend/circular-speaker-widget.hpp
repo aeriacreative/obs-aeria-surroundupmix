@@ -38,6 +38,8 @@ protected:
     void leaveEvent(QEvent* event) override;
     QSize sizeHint() const override { return QSize(180, 180); }
     QSize minimumSizeHint() const override { return QSize(100, 100); }
+    bool hasHeightForWidth() const override { return true; }
+    int heightForWidth(int w) const override { return w; }
 
 private:
     bool interactive_ = true;

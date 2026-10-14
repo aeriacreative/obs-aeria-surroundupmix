@@ -32,6 +32,7 @@ CircularSpeakerWidget::CircularSpeakerWidget(bool interactive, QWidget* parent)
     : QWidget(parent), interactive_(interactive)
 {
     setMouseTracking(true);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     for (size_t i = 0; i < METER_MAX_CHANNELS; ++i) {
         levels_[i].peak_linear = 0.0f;
         levels_[i].clip = false;

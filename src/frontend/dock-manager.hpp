@@ -40,7 +40,7 @@ private:
     MonitorDockWidget* monitor_dock_ = nullptr;
 
     std::map<std::string, FilterState*> active_states_;
-    std::map<std::string, ControlDockWidget*> control_docks_;
+    ControlDockWidget* control_dock_ = nullptr; ///< Single unified Sorround Control dock
 
     void AddMonitorToDocksMenu();
 };

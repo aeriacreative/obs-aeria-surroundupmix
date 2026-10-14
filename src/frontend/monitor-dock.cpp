@@ -1,20 +1,18 @@
 #include "monitor-dock.hpp"
-#include "../audio/global-surround.hpp"
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QDesktopServices>
 #include <QUrl>
-#include <QSignalBlocker>
 #include <algorithm>
 
 namespace AeriaSurround {
 
 static const struct {
     ChannelIndex ch;
-    const char* label;
-    QColor color;
+    const char*  label;
+    QColor       color;
 } MONITOR_CH_DEFS[8] = {
     { ChannelIndex::FrontLeft,  "L",   QColor(0, 210, 255) },
     { ChannelIndex::Center,     "C",   QColor(0, 255, 180) },
@@ -26,6 +24,8 @@ static const struct {
     { ChannelIndex::RearRight,  "RR",  QColor(140, 120, 255) },
 };
 
+// ─── Constructor / Destructor ────────────────────────────────────────────────
+
 MonitorDockWidget::MonitorDockWidget(QWidget* parent)
     : QDockWidget(parent)
 {
@@ -36,9 +36,6 @@ MonitorDockWidget::MonitorDockWidget(QWidget* parent)
     UpdateLayoutInfo();
     StartMonitoring();
 
-    bool global_on = GlobalSurround::Instance().IsEnabled();
-    OnToggleGlobalSurround(global_on);
-
     timer_ = new QTimer(this);
     connect(timer_, &QTimer::timeout, this, &MonitorDockWidget::OnTimer);
     timer_->start(33); // ~30 fps
@@ -48,9 +45,10 @@ MonitorDockWidget::~MonitorDockWidget() {
     StopMonitoring();
 }
 
+// ─── Audio Monitoring ────────────────────────────────────────────────────────
+
 void MonitorDockWidget::StartMonitoring() {
     if (monitoring_connected_) return;
-
     audio_t* audio = obs_get_audio();
     if (audio) {
         monitoring_connected_ = audio_output_connect(audio, 0, nullptr, AudioCallback, this);
@@ -59,7 +57,6 @@ void MonitorDockWidget::StartMonitoring() {
 
 void MonitorDockWidget::StopMonitoring() {
     if (!monitoring_connected_) return;
-
     audio_t* audio = obs_get_audio();
     if (audio) {
         audio_output_disconnect(audio, 0, AudioCallback, this);
@@ -76,9 +73,10 @@ void MonitorDockWidget::AudioCallback(void* param, size_t, struct audio_data* da
     for (size_t i = 0; i < count; ++i) {
         planes[i] = reinterpret_cast<const float*>(data->data[i]);
     }
-
     self->meter_.Process(planes, count, data->frames);
 }
+
+// ─── Layout Info ─────────────────────────────────────────────────────────────
 
 void MonitorDockWidget::UpdateLayoutInfo() {
     audio_t* audio = obs_get_audio();
@@ -93,36 +91,31 @@ void MonitorDockWidget::UpdateLayoutInfo() {
     QString layout_str;
     switch (speaker_layout_) {
     case SPEAKERS_5POINT1:
-        layout_str = "5.1 Surround (6 Channels Active)";
-        break;
+        layout_str = "5.1 Surround (6 ch)";  break;
     case SPEAKERS_7POINT1:
-        layout_str = "7.1 Surround (8 Channels Active)";
-        break;
+        layout_str = "7.1 Surround (8 ch)";  break;
     case SPEAKERS_STEREO:
-        layout_str = "Stereo (2 Channels Active — Set OBS Settings > Audio to 5.1/7.1 for surround)";
-        break;
+        layout_str = "Stereo (2 ch) — Set OBS Settings › Audio to 5.1/7.1 for surround"; break;
     case SPEAKERS_MONO:
-        layout_str = "Mono (1 Channel Active)";
-        break;
+        layout_str = "Mono (1 ch)";           break;
     default:
-        layout_str = QString("Custom (%1 Channels)").arg(active_channels_);
-        break;
+        layout_str = QString("%1 ch").arg(active_channels_); break;
     }
 
-    if (header_layout_status_) {
+    if (header_layout_status_)
         header_layout_status_->setText(QString("OBS Master Output: %1").arg(layout_str));
-    }
 
-    // Hide SL & SR when output is 5.1 or less
+    // Hide SL & SR columns when output is 5.1 or less
     bool show_side = (active_channels_ >= 8);
     for (size_t i = 0; i < meter_cols_.size() && i < 8; ++i) {
-        if (MONITOR_CH_DEFS[i].ch == ChannelIndex::SideLeft || MONITOR_CH_DEFS[i].ch == ChannelIndex::SideRight) {
+        if (MONITOR_CH_DEFS[i].ch == ChannelIndex::SideLeft ||
+            MONITOR_CH_DEFS[i].ch == ChannelIndex::SideRight) {
             meter_cols_[i]->setVisible(show_side);
         }
     }
-    if (strips_[4]) strips_[4]->setVisible(show_side); // SL
-    if (strips_[5]) strips_[5]->setVisible(show_side); // SR
 }
+
+// ─── UI Construction ─────────────────────────────────────────────────────────
 
 void MonitorDockWidget::BuildUI() {
     auto* container = new QWidget(this);
@@ -143,29 +136,10 @@ void MonitorDockWidget::BuildUI() {
         "  background: #293042;"
         "  border-color: #00d2ff;"
         "}"
-        "QComboBox {"
-        "  background: #1c212c;"
-        "  border: 1px solid #363e52;"
-        "  border-radius: 3px;"
-        "  padding: 3px 6px;"
-        "  color: #e0e4ed;"
-        "}"
-        "QSlider::groove:horizontal {"
-        "  height: 4px;"
-        "  background: #202534;"
-        "  border-radius: 2px;"
-        "}"
-        "QSlider::sub-page:horizontal {"
-        "  background: #00d2ff;"
-        "  border-radius: 2px;"
-        "}"
-        "QSlider::handle:horizontal {"
-        "  background: #ffffff;"
-        "  border: 1px solid #00d2ff;"
-        "  width: 12px;"
-        "  margin-top: -4px;"
-        "  margin-bottom: -4px;"
-        "  border-radius: 6px;"
+        "QPushButton:checked {"
+        "  background: #0088aa;"
+        "  border-color: #00d2ff;"
+        "  color: #ffffff;"
         "}"
     );
 
@@ -173,237 +147,113 @@ void MonitorDockWidget::BuildUI() {
     root_layout->setContentsMargins(8, 8, 8, 8);
     root_layout->setSpacing(6);
 
-    // Header layout
-    auto* header_layout = new QHBoxLayout();
-    header_layout->setSpacing(6);
+    // ── Header ───────────────────────────────────────────────────────────────
+    auto* header_row = new QHBoxLayout();
+    header_row->setSpacing(6);
 
     auto* title_box = new QVBoxLayout();
-    title_box->setSpacing(1);
-    header_title_ = new QLabel("Sorround Monitor", container);
-    header_title_->setStyleSheet("font-weight: bold; font-size: 13px; color: #ffffff;");
-    header_title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    header_title_->setMinimumWidth(0);
+    title_box->setSpacing(2);
 
-    header_source_info_ = new QLabel("Point: OBS Master Audio Output (Track 1 Mix)", container);
-    header_source_info_->setStyleSheet("color: #adb5c4; font-size: 11px;");
-    header_source_info_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    header_source_info_->setMinimumWidth(0);
+    auto* header_title = new QLabel("Sorround Monitor", container);
+    header_title->setStyleSheet("font-weight: bold; font-size: 13px; color: #ffffff;");
+    header_title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    header_title->setMinimumWidth(0);
+    title_box->addWidget(header_title);
+
+    auto* header_src = new QLabel("OBS Master Audio Output — Track 1 Mix", container);
+    header_src->setStyleSheet("color: #adb5c4; font-size: 11px;");
+    header_src->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    header_src->setMinimumWidth(0);
+    title_box->addWidget(header_src);
 
     header_layout_status_ = new QLabel("OBS Master Output: Detecting...", container);
     header_layout_status_->setStyleSheet("color: #00d2ff; font-size: 11px;");
     header_layout_status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     header_layout_status_->setMinimumWidth(0);
-
-    title_box->addWidget(header_title_);
-    title_box->addWidget(header_source_info_);
     title_box->addWidget(header_layout_status_);
-    header_layout->addLayout(title_box, 1);
 
-    // Global Surround toggle button
-    global_surround_btn_ = new QPushButton("Global Surround: OFF", container);
-    global_surround_btn_->setCheckable(true);
-    connect(global_surround_btn_, &QPushButton::toggled, this, &MonitorDockWidget::OnToggleGlobalSurround);
-    header_layout->addWidget(global_surround_btn_);
+    header_row->addLayout(title_box, 1);
 
     meter_btn_ = new QPushButton("Preview Meter", container);
     meter_btn_->setCheckable(true);
     meter_btn_->setChecked(true);
     connect(meter_btn_, &QPushButton::toggled, this, &MonitorDockWidget::OnToggleMeter);
-    header_layout->addWidget(meter_btn_);
+    header_row->addWidget(meter_btn_);
 
-    root_layout->addLayout(header_layout);
+    root_layout->addLayout(header_row);
 
-    // Separator line
+    // ── Separator ─────────────────────────────────────────────────────────────
     auto* sep1 = new QFrame(container);
     sep1->setFrameShape(QFrame::HLine);
     sep1->setStyleSheet("color: #242833;");
     root_layout->addWidget(sep1);
 
-    // Global Controls Section (visible when Global Surround is ON)
-    global_controls_container_ = new QWidget(container);
-    auto* gc_layout = new QVBoxLayout(global_controls_container_);
-    gc_layout->setContentsMargins(0, 0, 0, 0);
-    gc_layout->setSpacing(4);
-
-    // Mode Row
-    auto* mode_row = new QHBoxLayout();
-    mode_row->setSpacing(6);
-    auto* mode_lbl = new QLabel("Global Mode:", global_controls_container_);
-    mode_lbl->setStyleSheet("font-size: 11px; color: #adb5c4;");
-    mode_row->addWidget(mode_lbl);
-
-    mode_combo_ = new QComboBox(global_controls_container_);
-    mode_combo_->addItem("Auto (Follow OBS Output)");
-    mode_combo_->addItem("Force 5.1 Surround");
-    mode_combo_->addItem("Force 7.1 Surround");
-    mode_combo_->addItem("Mono Surround (Speaker Balance Test)");
-    mode_combo_->addItem("Direct Pass (Channel Gain Only)");
-    connect(mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MonitorDockWidget::OnModeChanged);
-    mode_row->addWidget(mode_combo_, 1);
-
-    reset_btn_ = new QPushButton("Reset All", global_controls_container_);
-    reset_btn_->setToolTip("Reset Global gains and panning to defaults");
-    connect(reset_btn_, &QPushButton::clicked, this, &MonitorDockWidget::OnResetClicked);
-    mode_row->addWidget(reset_btn_);
-
-    gc_layout->addLayout(mode_row);
-
-    // Spreads Row
-    auto* spread_row = new QHBoxLayout();
-    spread_row->setSpacing(8);
-
-    // Center Spread
-    auto* cs_box = new QHBoxLayout();
-    cs_box->setSpacing(4);
-    auto* cs_lbl = new QLabel("C-Spread:", global_controls_container_);
-    cs_lbl->setStyleSheet("font-size: 10px; color: #adb5c4;");
-    center_spread_slider_ = new QSlider(Qt::Horizontal, global_controls_container_);
-    center_spread_slider_->setRange(0, 100);
-    center_spread_slider_->setValue(50);
-    center_spread_val_ = new QLabel("0.50", global_controls_container_);
-    center_spread_val_->setStyleSheet("font-size: 10px; color: #00d2ff; min-width: 28px;");
-    connect(center_spread_slider_, &QSlider::valueChanged, this, &MonitorDockWidget::OnCenterSpreadChanged);
-    cs_box->addWidget(cs_lbl);
-    cs_box->addWidget(center_spread_slider_, 1);
-    cs_box->addWidget(center_spread_val_);
-    spread_row->addLayout(cs_box, 1);
-
-    // Surround Spread
-    auto* ss_box = new QHBoxLayout();
-    ss_box->setSpacing(4);
-    auto* ss_lbl = new QLabel("Surr-Spread:", global_controls_container_);
-    ss_lbl->setStyleSheet("font-size: 10px; color: #adb5c4;");
-    surround_spread_slider_ = new QSlider(Qt::Horizontal, global_controls_container_);
-    surround_spread_slider_->setRange(0, 100);
-    surround_spread_slider_->setValue(70);
-    surround_spread_val_ = new QLabel("0.70", global_controls_container_);
-    surround_spread_val_->setStyleSheet("font-size: 10px; color: #00d2ff; min-width: 28px;");
-    connect(surround_spread_slider_, &QSlider::valueChanged, this, &MonitorDockWidget::OnSurroundSpreadChanged);
-    ss_box->addWidget(ss_lbl);
-    ss_box->addWidget(surround_spread_slider_, 1);
-    ss_box->addWidget(surround_spread_val_);
-    spread_row->addLayout(ss_box, 1);
-
-    // LFE Cutoff
-    auto* lfe_box = new QHBoxLayout();
-    lfe_box->setSpacing(4);
-    auto* lfe_lbl = new QLabel("LFE:", global_controls_container_);
-    lfe_lbl->setStyleSheet("font-size: 10px; color: #adb5c4;");
-    lfe_cutoff_slider_ = new QSlider(Qt::Horizontal, global_controls_container_);
-    lfe_cutoff_slider_->setRange(60, 250);
-    lfe_cutoff_slider_->setValue(120);
-    lfe_cutoff_val_ = new QLabel("120 Hz", global_controls_container_);
-    lfe_cutoff_val_->setStyleSheet("font-size: 10px; color: #00d2ff; min-width: 36px;");
-    connect(lfe_cutoff_slider_, &QSlider::valueChanged, this, &MonitorDockWidget::OnLfeCutoffChanged);
-    lfe_box->addWidget(lfe_lbl);
-    lfe_box->addWidget(lfe_cutoff_slider_, 1);
-    lfe_box->addWidget(lfe_cutoff_val_);
-    spread_row->addLayout(lfe_box, 1);
-
-    gc_layout->addLayout(spread_row);
-    root_layout->addWidget(global_controls_container_);
-
-    // Circular Speaker Monitor View
+    // ── Circular speaker monitor (non-interactive, fills available space) ──────
     panner_ = new CircularSpeakerWidget(false, container);
-    connect(panner_, &CircularSpeakerWidget::PanChanged, this, &MonitorDockWidget::OnPanChanged);
-    connect(panner_, &CircularSpeakerWidget::SoloChannelPressed, this, [this](ChannelIndex ch) {
-        SetSoloChannel(static_cast<int>(ch), true, panner_->IsSoloLatched());
-    });
-    connect(panner_, &CircularSpeakerWidget::SoloChannelReleased, this, [this]() {
-        SetSoloChannel(-1, false, false);
-    });
-    root_layout->addWidget(panner_, 1, Qt::AlignCenter);
+    panner_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    connect(panner_, &CircularSpeakerWidget::SoloChannelPressed,  this, [](ChannelIndex) {});
+    connect(panner_, &CircularSpeakerWidget::SoloChannelReleased, this, []() {});
+    root_layout->addWidget(panner_, 1); // stretch=1: fills available dock height
 
-    // Separator line
+    // ── Separator ─────────────────────────────────────────────────────────────
     auto* sep2 = new QFrame(container);
     sep2->setFrameShape(QFrame::HLine);
     sep2->setStyleSheet("color: #242833;");
     root_layout->addWidget(sep2);
 
-    // Passive Channel Meters Strip Row (Visible when Global Surround is OFF)
-    passive_meters_container_ = new QWidget(container);
-    auto* meters_layout = new QHBoxLayout(passive_meters_container_);
-    meters_layout->setContentsMargins(0, 0, 0, 0);
-    meters_layout->setSpacing(4);
+    // ── Passive level meters (bar columns per channel) ───────────────────────
+    auto* meters_w = new QWidget(container);
+    auto* meters_l = new QHBoxLayout(meters_w);
+    meters_l->setContentsMargins(0, 0, 0, 0);
+    meters_l->setSpacing(4);
 
     meter_cols_.clear();
     meter_bars_.clear();
     meter_labels_.clear();
 
     for (size_t i = 0; i < 8; ++i) {
-        auto* col_widget = new QWidget(passive_meters_container_);
-        auto* col = new QVBoxLayout(col_widget);
+        auto* col_w = new QWidget(meters_w);
+        auto* col   = new QVBoxLayout(col_w);
         col->setContentsMargins(0, 0, 0, 0);
         col->setSpacing(2);
 
-        auto* label = new QLabel(MONITOR_CH_DEFS[i].label, col_widget);
-        label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet(QString(
+        auto* lbl = new QLabel(MONITOR_CH_DEFS[i].label, col_w);
+        lbl->setAlignment(Qt::AlignCenter);
+        lbl->setStyleSheet(QString(
             "QLabel {"
-            "  font-weight: bold;"
-            "  font-size: 11px;"
+            "  font-weight: bold; font-size: 11px;"
             "  color: %1;"
             "  background: #181b22;"
             "  border: 1px solid #282d38;"
             "  border-radius: 3px;"
             "  padding: 2px;"
             "}").arg(MONITOR_CH_DEFS[i].color.name()));
-        col->addWidget(label);
+        col->addWidget(lbl);
 
-        auto* bar = new MeterBarWidget(col_widget);
+        auto* bar = new MeterBarWidget(col_w);
         col->addWidget(bar, 1);
 
-        auto* db_text = new QLabel("-inf", col_widget);
+        auto* db_text = new QLabel("-inf", col_w);
         db_text->setAlignment(Qt::AlignCenter);
         db_text->setStyleSheet("font-size: 9px; color: #8892a4;");
         col->addWidget(db_text);
 
-        meters_layout->addWidget(col_widget);
-        meter_cols_.push_back(col_widget);
+        meters_l->addWidget(col_w);
+        meter_cols_.push_back(col_w);
         meter_bars_.push_back(bar);
         meter_labels_.push_back(db_text);
     }
-    root_layout->addWidget(passive_meters_container_);
+    root_layout->addWidget(meters_w);
 
-    // Active Global Strips Row (Visible when Global Surround is ON)
-    auto* strips_container = new QWidget(global_controls_container_);
-    auto* strips_layout = new QHBoxLayout(strips_container);
-    strips_layout->setContentsMargins(0, 0, 0, 0);
-    strips_layout->setSpacing(4);
-
-    for (size_t i = 0; i < 8; ++i) {
-        strips_[i] = new ChannelStripWidget(
-            MONITOR_CH_DEFS[i].ch,
-            MONITOR_CH_DEFS[i].label,
-            MONITOR_CH_DEFS[i].color,
-            strips_container
-        );
-        connect(strips_[i], &ChannelStripWidget::GainChanged, this, [this](ChannelIndex ch, float db) {
-            GlobalSurround::Instance().GetState().SetChannelGain(ch, db);
-        });
-        connect(strips_[i], &ChannelStripWidget::SoloPressed, this, [this, i](ChannelIndex ch) {
-            bool latched = strips_[i]->IsSoloLatched();
-            panner_->SetSoloState(static_cast<int>(ch), latched);
-            SetSoloChannel(static_cast<int>(ch), true, latched);
-        });
-        connect(strips_[i], &ChannelStripWidget::SoloReleased, this, [this]() {
-            panner_->SetSoloState(-1, false);
-            SetSoloChannel(-1, false, false);
-        });
-
-        strips_layout->addWidget(strips_[i]);
-    }
-    gc_layout->addWidget(strips_container);
-
-    // Separator line
+    // ── Separator + Footer ────────────────────────────────────────────────────
     auto* sep3 = new QFrame(container);
     sep3->setFrameShape(QFrame::HLine);
     sep3->setStyleSheet("color: #242833;");
     root_layout->addWidget(sep3);
 
-    // Footer with Clickable Credit
     credit_label_ = new QLabel(
-        "<a href=\"https://linktr.ee/aeriacreative\" style=\"color: #00d2ff; text-decoration: none;\">"
+        "<a href=\"https://linktr.ee/aeriacreative\" "
+        "style=\"color: #00d2ff; text-decoration: none;\">"
         "Aeria Sorround Upmix · linktr.ee/aeriacreative</a>",
         container);
     credit_label_->setAlignment(Qt::AlignCenter);
@@ -415,17 +265,13 @@ void MonitorDockWidget::BuildUI() {
     credit_label_->setMinimumWidth(0);
     root_layout->addWidget(credit_label_);
 
-    auto* scroll_area = new QScrollArea(this);
-    scroll_area->setWidgetResizable(true);
-    scroll_area->setFrameShape(QFrame::NoFrame);
-    scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    scroll_area->setWidget(container);
-
-    setWidget(scroll_area);
+    // No QScrollArea — panner expands to fill the dock
+    setWidget(container);
     setMinimumWidth(160);
-    setMinimumHeight(200);
+    setMinimumHeight(260);
 }
+
+// ─── Timer / Slots ───────────────────────────────────────────────────────────
 
 void MonitorDockWidget::OnTimer() {
     if (!meter_enabled_) return;
@@ -435,36 +281,22 @@ void MonitorDockWidget::OnTimer() {
     ChannelMeterData levels[METER_MAX_CHANNELS];
     meter_.GetSnapshot(levels, METER_MAX_CHANNELS);
 
-    // Update circular view
     panner_->SetChannelLevels(levels, active_channels_);
 
-    bool global_on = GlobalSurround::Instance().IsEnabled();
+    for (size_t i = 0; i < 8; ++i) {
+        size_t ch_idx = static_cast<size_t>(MONITOR_CH_DEFS[i].ch);
+        if (ch_idx < METER_MAX_CHANNELS && i < meter_bars_.size()) {
+            bool active = (ch_idx < active_channels_);
+            meter_bars_[i]->setEnabled(active);
+            meter_bars_[i]->SetLevel(levels[ch_idx].peak_db,
+                                     levels[ch_idx].rms_db,
+                                     levels[ch_idx].clip);
 
-    if (!global_on) {
-        // Update passive meters
-        for (size_t i = 0; i < 8; ++i) {
-            size_t ch_idx = static_cast<size_t>(MONITOR_CH_DEFS[i].ch);
-            if (ch_idx < METER_MAX_CHANNELS && i < meter_bars_.size()) {
-                bool active = (ch_idx < active_channels_);
-                meter_bars_[i]->setEnabled(active);
-                meter_bars_[i]->SetLevel(levels[ch_idx].peak_db, levels[ch_idx].rms_db, levels[ch_idx].clip);
-
-                float peak_db = levels[ch_idx].peak_db;
-                if (active && peak_db > -59.0f) {
-                    meter_labels_[i]->setText(QString("%1").arg(peak_db, 0, 'f', 1));
-                } else {
-                    meter_labels_[i]->setText(active ? "-inf" : "off");
-                }
-            }
-        }
-    } else {
-        // Update active channel strips
-        for (size_t i = 0; i < 8; ++i) {
-            size_t ch_idx = static_cast<size_t>(MONITOR_CH_DEFS[i].ch);
-            if (ch_idx < METER_MAX_CHANNELS && strips_[i]) {
-                bool active = (ch_idx < active_channels_);
-                strips_[i]->setEnabled(active);
-                strips_[i]->SetMeterData(levels[ch_idx]);
+            float peak_db = levels[ch_idx].peak_db;
+            if (active && peak_db > -59.0f) {
+                meter_labels_[i]->setText(QString("%1").arg(peak_db, 0, 'f', 1));
+            } else {
+                meter_labels_[i]->setText(active ? "-inf" : "off");
             }
         }
     }
@@ -474,161 +306,10 @@ void MonitorDockWidget::OnToggleMeter(bool checked) {
     meter_enabled_ = checked;
     meter_btn_->setText(checked ? "Preview Meter" : "Meter Paused");
     if (!checked) {
-        ChannelMeterData zero_levels[METER_MAX_CHANNELS];
-        panner_->SetChannelLevels(zero_levels, active_channels_);
-        for (auto* bar : meter_bars_) {
-            bar->SetLevel(-60.0f, -60.0f, false);
-        }
-        for (size_t i = 0; i < 8; ++i) {
-            if (strips_[i]) {
-                ChannelMeterData zero_data;
-                zero_data.peak_db = -60.0f;
-                zero_data.rms_db = -60.0f;
-                zero_data.clip = false;
-                strips_[i]->SetMeterData(zero_data);
-            }
-        }
-    }
-}
-
-void MonitorDockWidget::OnToggleGlobalSurround(bool checked) {
-    GlobalSurround::Instance().SetEnabled(checked);
-    global_surround_btn_->setText(checked ? "Global Surround: ON" : "Global Surround: OFF");
-    global_surround_btn_->setChecked(checked);
-
-    if (checked) {
-        global_surround_btn_->setStyleSheet(
-            "QPushButton {"
-            "  background: #0088aa;"
-            "  border: 1px solid #00d2ff;"
-            "  border-radius: 3px;"
-            "  padding: 4px 8px;"
-            "  color: #ffffff;"
-            "  font-weight: bold;"
-            "}"
-            "QPushButton:hover { background: #00a4cc; }"
-        );
-        header_title_->setText("Sorround Monitor · Global Mode Active");
-        header_source_info_->setText("Target: OBS Master Output (Speakers & Stream Upmixed)");
-        header_source_info_->setStyleSheet("color: #00e5a3; font-size: 11px;");
-        global_controls_container_->setVisible(true);
-        passive_meters_container_->setVisible(false);
-        panner_->SetInteractive(true);
-        LoadFromGlobalState();
-    } else {
-        global_surround_btn_->setStyleSheet(
-            "QPushButton {"
-            "  background: #202534;"
-            "  border: 1px solid #363e52;"
-            "  border-radius: 3px;"
-            "  padding: 4px 8px;"
-            "  color: #c4cce0;"
-            "}"
-            "QPushButton:hover { background: #293042; border-color: #00d2ff; }"
-        );
-        header_title_->setText("Sorround Monitor");
-        header_source_info_->setText("Point: OBS Master Audio Output (Track 1 Mix)");
-        header_source_info_->setStyleSheet("color: #adb5c4; font-size: 11px;");
-        global_controls_container_->setVisible(false);
-        passive_meters_container_->setVisible(true);
-        panner_->SetInteractive(false);
-    }
-}
-
-void MonitorDockWidget::LoadFromGlobalState() {
-    FilterState& st = GlobalSurround::Instance().GetState();
-    UpmixParams p = st.GetParamsSnapshot();
-
-    if (mode_combo_) {
-        QSignalBlocker b(mode_combo_);
-        int idx = 0;
-        switch (p.mode) {
-        case UpmixMode::Auto: idx = 0; break;
-        case UpmixMode::Force5Point1: idx = 1; break;
-        case UpmixMode::Force7Point1: idx = 2; break;
-        case UpmixMode::MonoSurround: idx = 3; break;
-        case UpmixMode::Direct: idx = 4; break;
-        }
-        mode_combo_->setCurrentIndex(idx);
-    }
-
-    if (panner_) {
-        panner_->SetPan(p.pan_x, p.pan_y);
-    }
-
-    if (center_spread_slider_) {
-        QSignalBlocker b(center_spread_slider_);
-        center_spread_slider_->setValue(static_cast<int>(p.center_spread * 100.0f));
-        if (center_spread_val_) center_spread_val_->setText(QString::number(p.center_spread, 'f', 2));
-    }
-
-    if (surround_spread_slider_) {
-        QSignalBlocker b(surround_spread_slider_);
-        surround_spread_slider_->setValue(static_cast<int>(p.surround_spread * 100.0f));
-        if (surround_spread_val_) surround_spread_val_->setText(QString::number(p.surround_spread, 'f', 2));
-    }
-
-    if (lfe_cutoff_slider_) {
-        QSignalBlocker b(lfe_cutoff_slider_);
-        lfe_cutoff_slider_->setValue(static_cast<int>(p.lfe_cutoff_hz));
-        if (lfe_cutoff_val_) lfe_cutoff_val_->setText(QString("%1 Hz").arg(static_cast<int>(p.lfe_cutoff_hz)));
-    }
-
-    for (size_t i = 0; i < 8; ++i) {
-        if (strips_[i]) {
-            strips_[i]->SetGainDb(p.channel_gain_db[i]);
-        }
-    }
-}
-
-void MonitorDockWidget::OnModeChanged(int index) {
-    UpmixMode mode = UpmixMode::Auto;
-    switch (index) {
-    case 0: mode = UpmixMode::Auto; break;
-    case 1: mode = UpmixMode::Force5Point1; break;
-    case 2: mode = UpmixMode::Force7Point1; break;
-    case 3: mode = UpmixMode::MonoSurround; break;
-    case 4: mode = UpmixMode::Direct; break;
-    }
-    GlobalSurround::Instance().GetState().SetMode(mode);
-}
-
-void MonitorDockWidget::OnCenterSpreadChanged(int val) {
-    float spread = val / 100.0f;
-    if (center_spread_val_) center_spread_val_->setText(QString::number(spread, 'f', 2));
-    GlobalSurround::Instance().GetState().SetCenterSpread(spread);
-}
-
-void MonitorDockWidget::OnSurroundSpreadChanged(int val) {
-    float spread = val / 100.0f;
-    if (surround_spread_val_) surround_spread_val_->setText(QString::number(spread, 'f', 2));
-    GlobalSurround::Instance().GetState().SetSurroundSpread(spread);
-}
-
-void MonitorDockWidget::OnLfeCutoffChanged(int val) {
-    if (lfe_cutoff_val_) lfe_cutoff_val_->setText(QString("%1 Hz").arg(val));
-    GlobalSurround::Instance().GetState().SetLfeCutoff(static_cast<float>(val));
-}
-
-void MonitorDockWidget::OnPanChanged(float x, float y) {
-    GlobalSurround::Instance().GetState().SetPanning(x, y);
-}
-
-void MonitorDockWidget::OnResetClicked() {
-    FilterState& st = GlobalSurround::Instance().GetState();
-    st.ResetAll();
-    LoadFromGlobalState();
-}
-
-void MonitorDockWidget::SetSoloChannel(int ch_idx, bool solo, bool latched) {
-    GlobalSurround::Instance().GetState().SetSoloChannel(solo ? ch_idx : -1);
-    for (int i = 0; i < 8; ++i) {
-        if (strips_[i]) {
-            strips_[i]->SetSoloHighlighted(solo && (i == ch_idx), latched && (i == ch_idx));
-            if (!solo) {
-                strips_[i]->UnlatchSolo();
-            }
-        }
+        ChannelMeterData zero[METER_MAX_CHANNELS];
+        panner_->SetChannelLevels(zero, active_channels_);
+        for (auto* bar : meter_bars_) bar->SetLevel(-60.0f, -60.0f, false);
+        for (auto* lbl : meter_labels_) lbl->setText("-inf");
     }
 }
 

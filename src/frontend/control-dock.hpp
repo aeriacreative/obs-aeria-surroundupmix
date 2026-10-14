@@ -5,7 +5,6 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QComboBox>
-#include <QSlider>
 #include <memory>
 #include <vector>
 #include "circular-speaker-widget.hpp"
@@ -14,16 +13,22 @@
 
 namespace AeriaSurround {
 
+// Unified "Sorround Control" dock — one dock for all filters.
+// A dropdown in the header lets the user switch between registered filter states.
+// Each filter keeps its own settings; switching the dropdown loads that filter's state.
 class ControlDockWidget : public QDockWidget {
     Q_OBJECT
 
 public:
-    explicit ControlDockWidget(FilterState* filter_state, QWidget* parent = nullptr);
+    explicit ControlDockWidget(QWidget* parent = nullptr);
     ~ControlDockWidget() override;
 
-    const std::string& GetInstanceId() const { return instance_id_; }
-    void DetachFilter();
-    void RefreshTitle();
+    // Called by DockManager when filters are created / destroyed
+    void AddFilterState(FilterState* state);
+    void RemoveFilterState(FilterState* state);
+
+    // Show this dock and focus on the specified filter in the dropdown
+    void SetActiveFilter(FilterState* state);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -31,36 +36,43 @@ protected:
 
 private slots:
     void OnMeterTimer();
+    void OnSourceComboChanged(int index);
     void OnPanChanged(float x, float y);
     void OnGainChanged(ChannelIndex ch, float db);
     void OnToggleMeter(bool checked);
     void OnModeChanged(int index);
-    void OnCreditClicked();
 
 private:
-    std::string instance_id_;
-    FilterState* filter_state_ = nullptr;
+    // Registered filter states (ordered for combo)
+    std::vector<FilterState*> filter_list_;
+    FilterState* active_state_ = nullptr;
 
     QTimer* meter_timer_ = nullptr;
-    bool meter_enabled_ = true;
+    bool meter_enabled_       = true;
     bool updating_from_state_ = false;
 
-    // UI elements
-    QLabel* header_title_ = nullptr;
-    QLabel* header_status_ = nullptr;
-    QPushButton* meter_btn_ = nullptr;
+    // Header UI
+    QComboBox*   source_combo_ = nullptr; ///< Dropdown: which filter to control
+    QPushButton* meter_btn_    = nullptr;
 
-    CircularSpeakerWidget* panner_ = nullptr;
-    QLabel* pan_label_ = nullptr;
-
-    QComboBox* mode_combo_ = nullptr;
+    // Main controls
+    QComboBox*             mode_combo_ = nullptr;
+    CircularSpeakerWidget* panner_     = nullptr;
+    QLabel*                pan_label_  = nullptr;
     std::vector<ChannelStripWidget*> strips_;
+
+    // Placeholder shown when no filters are registered
+    QLabel*  no_filter_label_ = nullptr;
+    QWidget* controls_widget_ = nullptr; ///< Hidden when no filters
 
     QLabel* credit_label_ = nullptr;
 
     void BuildUI();
     void LoadFromState();
     void UpdateChannelVisibility();
+    void SyncCombo();   ///< Rebuild combo items from filter_list_
+
+    QString FilterDisplayName(FilterState* s) const;
 };
 
 } // namespace AeriaSurround
