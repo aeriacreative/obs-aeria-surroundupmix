@@ -92,7 +92,17 @@ void DockManager::UnregisterFilterState(FilterState* state) {
     if (!state) return;
     std::string id = state->GetInstanceId();
 
-    auto run_cleanup = [this, id]() {
+    // CRITICAL: Always erase from active_states_ IMMEDIATELY and synchronously
+    // (thread-safe under mutex) so that any pending timer callbacks (e.g.,
+    // RefreshAudioMonitoring's 150ms QTimer) never encounter a dangling state pointer
+    // after the caller does `delete ctx->state`.
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        active_states_.erase(id);
+    }
+
+    // Dock widget cleanup must run on the Qt main thread (UI thread).
+    auto run_dock_cleanup = [this, id]() {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = control_docks_.find(id);
         if (it != control_docks_.end()) {
@@ -100,13 +110,12 @@ void DockManager::UnregisterFilterState(FilterState* state) {
             delete it->second;
             control_docks_.erase(it);
         }
-        active_states_.erase(id);
     };
 
     if (qApp && QThread::currentThread() != qApp->thread()) {
-        QMetaObject::invokeMethod(qApp, run_cleanup, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(qApp, run_dock_cleanup, Qt::QueuedConnection);
     } else {
-        run_cleanup();
+        run_dock_cleanup();
     }
 }
 
@@ -118,6 +127,8 @@ void DockManager::OpenControlDock(FilterState* state) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = control_docks_.find(id);
         if (it != control_docks_.end() && it->second) {
+            // Dock for this source already exists — bring it to front.
+            it->second->setFloating(true);
             it->second->show();
             it->second->raise();
             it->second->activateWindow();
@@ -128,10 +139,14 @@ void DockManager::OpenControlDock(FilterState* state) {
             main_window_ = reinterpret_cast<QMainWindow*>(obs_frontend_get_main_window());
         }
 
+        // Create a new independent floating dock for this filter/source.
         auto* dock = new ControlDockWidget(state, main_window_);
         obs_frontend_add_custom_qdock(id.c_str(), dock);
         control_docks_[id] = dock;
 
+        // Float immediately so each source gets its own visible window,
+        // not hidden/tabbed behind another dock.
+        dock->setFloating(true);
         dock->show();
         dock->raise();
         dock->activateWindow();
@@ -162,30 +177,42 @@ void DockManager::ShowMonitorDock() {
 }
 
 void DockManager::RefreshAudioMonitoring() {
-    auto run_refresh = [this]() {
+    // Snapshot valid filter sources with an addref so they stay alive
+    // even if filters are destroyed within the 150ms delay window.
+    std::vector<obs_source_t*> filter_srcs;
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         for (auto& pair : active_states_) {
             FilterState* state = pair.second;
             if (!state) continue;
-            obs_source_t* filter_ctx = state->GetFilterContext();
-            if (!filter_ctx) continue;
-            obs_source_t* parent = obs_filter_get_parent(filter_ctx);
-            if (!parent) continue;
-
-            if (obs_source_active(parent)) {
-                uint32_t mon_type = obs_source_get_monitoring_type(parent);
-                if (mon_type != OBS_MONITORING_TYPE_NONE) {
-                    obs_source_set_monitoring_type(parent, OBS_MONITORING_TYPE_NONE);
-                    obs_source_set_monitoring_type(parent, static_cast<enum obs_monitoring_type>(mon_type));
-                }
+            obs_source_t* fc = state->GetFilterContext();
+            if (fc) {
+                obs_source_t* ref = obs_source_get_ref(fc); // keep alive for 150ms window
+                if (ref) filter_srcs.push_back(ref);
             }
         }
-    };
+    }
 
-    if (qApp) {
-        QTimer::singleShot(150, [run_refresh]() {
-            run_refresh();
+    if (qApp && !filter_srcs.empty()) {
+        QTimer::singleShot(150, [filter_srcs]() {
+            for (obs_source_t* filter_ctx : filter_srcs) {
+                obs_source_t* parent = obs_filter_get_parent(filter_ctx);
+                if (parent && obs_source_active(parent)) {
+                    uint32_t mon_type = obs_source_get_monitoring_type(parent);
+                    if (mon_type != OBS_MONITORING_TYPE_NONE) {
+                        obs_source_set_monitoring_type(parent, OBS_MONITORING_TYPE_NONE);
+                        obs_source_set_monitoring_type(parent,
+                            static_cast<enum obs_monitoring_type>(mon_type));
+                    }
+                }
+                obs_source_release(filter_ctx); // release the ref we added above
+            }
         });
+    } else {
+        // No timer needed — release any refs we added
+        for (obs_source_t* fc : filter_srcs) {
+            obs_source_release(fc);
+        }
     }
 }
 
