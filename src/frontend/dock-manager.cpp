@@ -78,6 +78,14 @@ void DockManager::RegisterFilterState(FilterState* state) {
     if (!state) return;
     std::lock_guard<std::mutex> lock(mutex_);
     active_states_[state->GetInstanceId()] = state;
+
+    // If the manager is already initialized (e.g. filter added at runtime or after
+    // a scene collection switch) and the state wants its dock visible, restore it.
+    if (main_window_ && state->IsDockVisible()) {
+        QMetaObject::invokeMethod(qApp, [this, state]() {
+            OpenControlDock(state);
+        }, Qt::QueuedConnection);
+    }
 }
 
 void DockManager::UnregisterFilterState(FilterState* state) {

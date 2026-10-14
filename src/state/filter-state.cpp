@@ -269,11 +269,15 @@ void FilterState::NotifyChange() {
 
 void FilterState::SyncToObsSettings() {
     if (!filter_context_) return;
+    if (syncing_) return; // prevent recursive obs_source_update calls
+    syncing_ = true;
     obs_data_t* settings = obs_source_get_settings(filter_context_);
-    if (!settings) return;
-    SaveSettings(settings);
-    obs_source_update(filter_context_, settings);
-    obs_data_release(settings);
+    if (settings) {
+        SaveSettings(settings);
+        obs_source_update(filter_context_, settings);
+        obs_data_release(settings);
+    }
+    syncing_ = false;
 }
 
 } // namespace AeriaSurround

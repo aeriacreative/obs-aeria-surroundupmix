@@ -39,10 +39,6 @@ static void filter_update(void* data, obs_data_t* settings) {
 
     ctx->state->LoadSettings(settings);
     ctx->engine.SetParams(ctx->state->GetParamsSnapshot());
-
-    if (ctx->state->IsDockVisible() && DockManager::Instance().IsReady()) {
-        DockManager::Instance().OpenControlDock(ctx->state);
-    }
 }
 
 static bool on_open_dock_clicked(obs_properties_t*, obs_property_t*, void* priv) {

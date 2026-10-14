@@ -53,6 +53,7 @@ private:
     std::string instance_id_;
     obs_source_t* filter_context_ = nullptr;
     bool dock_visible_ = false;
+    bool syncing_ = false; // reentrancy guard for SyncToObsSettings
 
     mutable std::mutex param_mutex_;
     UpmixParams params_;
