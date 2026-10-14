@@ -42,7 +42,8 @@ private slots:
     void OnGainChanged(ChannelIndex ch, float db);
     void OnToggleMeter(bool checked);
     void OnModeChanged(int index);
-    void OnJumpToFilter(); ///< Opens the active filter's parent source filters dialog
+    void OnOpenFilterSettings(); ///< ⚙ Opens the OBS filter dialog for the selected source
+    void OnJumpToActiveSource(); ///< ⤵ Switches dock to the source active in the current scene
 
 private:
     // Registered filter states (ordered for combo)
@@ -54,9 +55,10 @@ private:
     bool updating_from_state_ = false;
 
     // Header UI
-    QComboBox*   source_combo_ = nullptr; ///< Dropdown: which filter to control
-    QPushButton* meter_btn_    = nullptr;
-    QPushButton* jump_btn_     = nullptr; ///< Opens active filter's source filters dialog
+    QComboBox*   source_combo_   = nullptr; ///< Dropdown: which filter to control
+    QPushButton* meter_btn_      = nullptr;
+    QPushButton* settings_btn_   = nullptr; ///< ⚙ Opens OBS filter settings dialog
+    QPushButton* jump_btn_       = nullptr; ///< ⤵ Jumps to active source in program scene
 
     // Main controls
     QSplitter*             splitter_  = nullptr; ///< Draggable divider: panner ↕ strips
@@ -74,9 +76,11 @@ private:
     void BuildUI();
     void LoadFromState();
     void UpdateChannelVisibility();
-    void SyncCombo();   ///< Rebuild combo items from filter_list_
+    void SyncCombo(); ///< Rebuild combo items from filter_list_ (includes [Global] tags)
 
-    QString FilterDisplayName(FilterState* s) const;
+    QString FilterDisplayName(FilterState* s) const; ///< Returns name + "[Global]" if not in scene
+    /// Returns true if @p src appears as a scene item in the current OBS program scene.
+    static bool IsSourceInCurrentScene(obs_source_t* src);
 };
 
 } // namespace AeriaSurround

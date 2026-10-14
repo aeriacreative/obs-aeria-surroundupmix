@@ -55,9 +55,44 @@ ControlDockWidget::~ControlDockWidget() {
 
 // ─── Filter Registry ─────────────────────────────────────────────────────────
 
+// ─── Scene / Global Helpers ──────────────────────────────────────────────────
+
+bool ControlDockWidget::IsSourceInCurrentScene(obs_source_t* src) {
+    if (!src) return false;
+
+    obs_source_t* scene_src = obs_frontend_get_current_scene();
+    if (!scene_src) return false;
+
+    obs_scene_t* scene = obs_scene_from_source(scene_src);
+    bool found = false;
+    if (scene) {
+        // obs_scene_find_source does a direct (non-nested) search by name
+        obs_sceneitem_t* item = obs_scene_find_source(scene, obs_source_get_name(src));
+        found = (item != nullptr);
+    }
+    obs_source_release(scene_src);
+    return found;
+}
+
 QString ControlDockWidget::FilterDisplayName(FilterState* s) const {
     if (!s) return "(Unknown)";
-    return QString::fromStdString(s->GetDisplayName());
+    QString base = QString::fromStdString(s->GetDisplayName());
+
+    // Check whether the filter's parent source is a scene item in the current
+    // program scene. If it is NOT (e.g. the source was added as global audio),
+    // append "[Global]" so the user can tell them apart in the dropdown.
+    obs_source_t* fc = s->GetFilterContext();
+    if (!fc) return base;
+
+    obs_source_t* filter_ref = obs_source_get_ref(fc);
+    if (!filter_ref) return base;
+
+    obs_source_t* parent = obs_filter_get_parent(filter_ref);
+    if (parent && !IsSourceInCurrentScene(parent)) {
+        base += " [Global]";
+    }
+    obs_source_release(filter_ref);
+    return base;
 }
 
 void ControlDockWidget::AddFilterState(FilterState* state) {
@@ -234,14 +269,29 @@ void ControlDockWidget::BuildUI() {
     connect(meter_btn_, &QPushButton::toggled, this, &ControlDockWidget::OnToggleMeter);
     source_row->addWidget(meter_btn_);
 
-    jump_btn_ = new QPushButton("➜", container);
-    jump_btn_->setToolTip("Jump to filter — Open the source filter dialog for the selected filter");
-    jump_btn_->setFixedWidth(32);
-    jump_btn_->setStyleSheet(
-        "QPushButton { font-size: 14px; padding: 2px 4px; }"
+    // ⚙ — Opens OBS filter settings dialog for the selected source
+    settings_btn_ = new QPushButton("\u2699", container);
+    settings_btn_->setToolTip("Open filter settings — Show the OBS filter dialog for the selected source");
+    settings_btn_->setFixedWidth(30);
+    settings_btn_->setStyleSheet(
+        "QPushButton { font-size: 13px; padding: 1px 2px; }"
         "QPushButton:hover { background: #1a4a6a; border-color: #00d2ff; color: #00d2ff; }"
     );
-    connect(jump_btn_, &QPushButton::clicked, this, &ControlDockWidget::OnJumpToFilter);
+    connect(settings_btn_, &QPushButton::clicked, this, &ControlDockWidget::OnOpenFilterSettings);
+    source_row->addWidget(settings_btn_);
+
+    // ⤵ — Switches dock to the source currently playing in the program scene
+    jump_btn_ = new QPushButton("\u2935", container);
+    jump_btn_->setToolTip(
+        "Jump to active source — Switch dock to the source active in the current scene.\n"
+        "Prioritises scene sources; falls back to global audio if none are active."
+    );
+    jump_btn_->setFixedWidth(30);
+    jump_btn_->setStyleSheet(
+        "QPushButton { font-size: 13px; padding: 1px 2px; }"
+        "QPushButton:hover { background: #1a4a2a; border-color: #00ff88; color: #00ff88; }"
+    );
+    connect(jump_btn_, &QPushButton::clicked, this, &ControlDockWidget::OnJumpToActiveSource);
     source_row->addWidget(jump_btn_);
 
     root_layout->addLayout(source_row);
@@ -491,24 +541,63 @@ void ControlDockWidget::OnModeChanged(int index) {
     UpdateChannelVisibility();
 }
 
-void ControlDockWidget::OnJumpToFilter() {
+// ⚙ — Open the OBS "Filters" dialog for the currently selected source.
+void ControlDockWidget::OnOpenFilterSettings() {
     if (!active_state_) return;
 
-    // Get the filter obs_source_t safely with an addref
-    obs_source_t* filter_ctx = active_state_->GetFilterContext();
-    if (!filter_ctx) return;
+    obs_source_t* fc = active_state_->GetFilterContext();
+    if (!fc) return;
 
-    obs_source_t* filter_ref = obs_source_get_ref(filter_ctx);
+    obs_source_t* filter_ref = obs_source_get_ref(fc);
     if (!filter_ref) return;
 
-    // Get the parent source that owns the filter
     obs_source_t* parent = obs_filter_get_parent(filter_ref);
     if (parent) {
-        // Open the OBS filters dialog for the parent source
         obs_frontend_open_source_filters(parent);
     }
-
     obs_source_release(filter_ref);
+}
+
+// ⤵ — Switch the dock dropdown to the source currently active in the scene.
+//
+// Priority order:
+//   1. Scene sources (items in the current program scene) that are audio-active.
+//   2. Global audio sources (NOT in the current scene) that are audio-active.
+//      These are only selected when no scene source qualifies.
+//
+// "Active" is determined by obs_source_audio_active(), which returns true when
+// the source is actually outputting audio (not muted, not hidden).
+void ControlDockWidget::OnJumpToActiveSource() {
+    FilterState* scene_match  = nullptr; // Best candidate: scene source
+    FilterState* global_match = nullptr; // Fallback: global audio source
+
+    for (FilterState* state : filter_list_) {
+        obs_source_t* fc = state->GetFilterContext();
+        if (!fc) continue;
+
+        obs_source_t* filter_ref = obs_source_get_ref(fc);
+        if (!filter_ref) continue;
+
+        obs_source_t* parent = obs_filter_get_parent(filter_ref);
+
+        if (parent && obs_source_audio_active(parent)) {
+            bool in_scene = IsSourceInCurrentScene(parent);
+            if (in_scene && !scene_match) {
+                scene_match = state; // First active scene source wins
+            } else if (!in_scene && !global_match) {
+                global_match = state; // First active global audio source as fallback
+            }
+        }
+        obs_source_release(filter_ref);
+
+        if (scene_match) break; // Scene match found — no need to continue
+    }
+
+    // Pick the best candidate: scene source first, global audio as fallback
+    FilterState* best = scene_match ? scene_match : global_match;
+    if (best && best != active_state_) {
+        SetActiveFilter(best);
+    }
 }
 
 } // namespace AeriaSurround
