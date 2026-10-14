@@ -6,6 +6,7 @@
 #include <QSignalBlocker>
 #include <algorithm>
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 
 namespace AeriaSurround {
 
@@ -233,6 +234,16 @@ void ControlDockWidget::BuildUI() {
     connect(meter_btn_, &QPushButton::toggled, this, &ControlDockWidget::OnToggleMeter);
     source_row->addWidget(meter_btn_);
 
+    jump_btn_ = new QPushButton("➜", container);
+    jump_btn_->setToolTip("Jump to filter — Open the source filter dialog for the selected filter");
+    jump_btn_->setFixedWidth(32);
+    jump_btn_->setStyleSheet(
+        "QPushButton { font-size: 14px; padding: 2px 4px; }"
+        "QPushButton:hover { background: #1a4a6a; border-color: #00d2ff; color: #00d2ff; }"
+    );
+    connect(jump_btn_, &QPushButton::clicked, this, &ControlDockWidget::OnJumpToFilter);
+    source_row->addWidget(jump_btn_);
+
     root_layout->addLayout(source_row);
 
     // ── Separator ─────────────────────────────────────────────────────────────
@@ -274,9 +285,29 @@ void ControlDockWidget::BuildUI() {
     mode_row->addWidget(mode_combo_, 1);
     ctrl->addLayout(mode_row);
 
-    // Circular panner — fills available vertical space, always square
-    // paintEvent uses std::min(w,h) so it self-squares at any size
-    panner_ = new CircularSpeakerWidget(true, controls_widget_);
+    // ── Splitter: circular panner (top) ↕ channel strips (bottom) ───────────
+    // The handle is draggable so the user can give more height to either section.
+    splitter_ = new QSplitter(Qt::Vertical, controls_widget_);
+    splitter_->setChildrenCollapsible(false);
+    splitter_->setStyleSheet(
+        "QSplitter::handle:vertical {"
+        "  background: #2a2f3d;"
+        "  height: 5px;"
+        "  border-top: 1px solid #3a4155;"
+        "  border-bottom: 1px solid #3a4155;"
+        "}"
+        "QSplitter::handle:vertical:hover {"
+        "  background: #00d2ff;"
+        "}"
+    );
+
+    // Top pane: circular panner + pan coordinate label
+    auto* panner_pane = new QWidget(splitter_);
+    auto* panner_pane_l = new QVBoxLayout(panner_pane);
+    panner_pane_l->setContentsMargins(0, 0, 0, 0);
+    panner_pane_l->setSpacing(3);
+
+    panner_ = new CircularSpeakerWidget(true, panner_pane);
     panner_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     connect(panner_, &CircularSpeakerWidget::PanChanged,
             this, &ControlDockWidget::OnPanChanged);
@@ -292,26 +323,22 @@ void ControlDockWidget::BuildUI() {
         if (active_state_) active_state_->SetSoloChannel(-1);
         for (auto* s : strips_) s->UnlatchSolo();
     });
-    ctrl->addWidget(panner_, 1); // stretch=1: panner grows with dock
+    panner_pane_l->addWidget(panner_, 1);
 
     pan_label_ = new QLabel("Pan: Center (0.00, 0.00) — Drag handle or double-click to center",
-                            controls_widget_);
+                            panner_pane);
     pan_label_->setAlignment(Qt::AlignCenter);
     pan_label_->setStyleSheet("color: #8c96ab; font-size: 11px;");
     pan_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     pan_label_->setMinimumWidth(0);
-    ctrl->addWidget(pan_label_);
+    panner_pane_l->addWidget(pan_label_);
 
-    // Separator
-    auto* sep2 = new QFrame(controls_widget_);
-    sep2->setFrameShape(QFrame::HLine);
-    sep2->setStyleSheet("color: #242833;");
-    ctrl->addWidget(sep2);
+    splitter_->addWidget(panner_pane);
 
-    // Channel strips
-    auto* strips_w = new QWidget(controls_widget_);
+    // Bottom pane: channel strips (gain sliders + meters per channel)
+    auto* strips_w = new QWidget(splitter_);
     auto* strips_l = new QHBoxLayout(strips_w);
-    strips_l->setContentsMargins(0, 0, 0, 0);
+    strips_l->setContentsMargins(0, 4, 0, 0);
     strips_l->setSpacing(3);
     strips_.clear();
     for (size_t i = 0; i < 8; ++i) {
@@ -332,7 +359,13 @@ void ControlDockWidget::BuildUI() {
         strips_l->addWidget(strip);
         strips_.push_back(strip);
     }
-    ctrl->addWidget(strips_w);
+    splitter_->addWidget(strips_w);
+
+    // Initial ratio ~65% panner / 35% sliders
+    splitter_->setStretchFactor(0, 2);
+    splitter_->setStretchFactor(1, 1);
+
+    ctrl->addWidget(splitter_, 1);
 
     root_layout->addWidget(controls_widget_, 1);
 
@@ -456,6 +489,26 @@ void ControlDockWidget::OnModeChanged(int index) {
     if (updating_from_state_ || !active_state_) return;
     active_state_->SetMode(static_cast<UpmixMode>(index));
     UpdateChannelVisibility();
+}
+
+void ControlDockWidget::OnJumpToFilter() {
+    if (!active_state_) return;
+
+    // Get the filter obs_source_t safely with an addref
+    obs_source_t* filter_ctx = active_state_->GetFilterContext();
+    if (!filter_ctx) return;
+
+    obs_source_t* filter_ref = obs_source_get_ref(filter_ctx);
+    if (!filter_ref) return;
+
+    // Get the parent source that owns the filter
+    obs_source_t* parent = obs_filter_get_parent(filter_ref);
+    if (parent) {
+        // Open the OBS filters dialog for the parent source
+        obs_frontend_open_source_filters(parent);
+    }
+
+    obs_source_release(filter_ref);
 }
 
 } // namespace AeriaSurround

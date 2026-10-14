@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QComboBox>
+#include <QSplitter>
 #include <memory>
 #include <vector>
 #include "circular-speaker-widget.hpp"
@@ -41,6 +42,7 @@ private slots:
     void OnGainChanged(ChannelIndex ch, float db);
     void OnToggleMeter(bool checked);
     void OnModeChanged(int index);
+    void OnJumpToFilter(); ///< Opens the active filter's parent source filters dialog
 
 private:
     // Registered filter states (ordered for combo)
@@ -54,8 +56,10 @@ private:
     // Header UI
     QComboBox*   source_combo_ = nullptr; ///< Dropdown: which filter to control
     QPushButton* meter_btn_    = nullptr;
+    QPushButton* jump_btn_     = nullptr; ///< Opens active filter's source filters dialog
 
     // Main controls
+    QSplitter*             splitter_  = nullptr; ///< Draggable divider: panner ↕ strips
     QComboBox*             mode_combo_ = nullptr;
     CircularSpeakerWidget* panner_     = nullptr;
     QLabel*                pan_label_  = nullptr;

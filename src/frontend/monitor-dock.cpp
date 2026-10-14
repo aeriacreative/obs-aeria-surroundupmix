@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFrame>
+#include <QSplitter>
 #include <QDesktopServices>
 #include <QUrl>
 #include <algorithm>
@@ -182,29 +183,34 @@ void MonitorDockWidget::BuildUI() {
 
     root_layout->addLayout(header_row);
 
-    // ── Separator ─────────────────────────────────────────────────────────────
-    auto* sep1 = new QFrame(container);
-    sep1->setFrameShape(QFrame::HLine);
-    sep1->setStyleSheet("color: #242833;");
-    root_layout->addWidget(sep1);
+    // ── Splitter: circular panner (top) ↕ passive level meters (bottom) ────────
+    // The handle between the two sections is draggable so the user can resize
+    // how much vertical space each section gets.
+    splitter_ = new QSplitter(Qt::Vertical, container);
+    splitter_->setChildrenCollapsible(false);
+    splitter_->setStyleSheet(
+        "QSplitter::handle:vertical {"
+        "  background: #2a2f3d;"
+        "  height: 5px;"
+        "  border-top: 1px solid #3a4155;"
+        "  border-bottom: 1px solid #3a4155;"
+        "}"
+        "QSplitter::handle:vertical:hover {"
+        "  background: #00d2ff;"
+        "}"
+    );
 
-    // ── Circular speaker monitor (non-interactive, fills available space) ──────
-    panner_ = new CircularSpeakerWidget(false, container);
+    // Top pane: circular panner
+    panner_ = new CircularSpeakerWidget(false, splitter_);
     panner_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     connect(panner_, &CircularSpeakerWidget::SoloChannelPressed,  this, [](ChannelIndex) {});
     connect(panner_, &CircularSpeakerWidget::SoloChannelReleased, this, []() {});
-    root_layout->addWidget(panner_, 1); // stretch=1: fills available dock height
+    splitter_->addWidget(panner_);
 
-    // ── Separator ─────────────────────────────────────────────────────────────
-    auto* sep2 = new QFrame(container);
-    sep2->setFrameShape(QFrame::HLine);
-    sep2->setStyleSheet("color: #242833;");
-    root_layout->addWidget(sep2);
-
-    // ── Passive level meters (bar columns per channel) ───────────────────────
-    auto* meters_w = new QWidget(container);
+    // Bottom pane: passive level meter bars per channel
+    auto* meters_w = new QWidget(splitter_);
     auto* meters_l = new QHBoxLayout(meters_w);
-    meters_l->setContentsMargins(0, 0, 0, 0);
+    meters_l->setContentsMargins(4, 4, 4, 4);
     meters_l->setSpacing(4);
 
     meter_cols_.clear();
@@ -243,7 +249,13 @@ void MonitorDockWidget::BuildUI() {
         meter_bars_.push_back(bar);
         meter_labels_.push_back(db_text);
     }
-    root_layout->addWidget(meters_w);
+    splitter_->addWidget(meters_w);
+
+    // Initial split ratio ~65% panner / 35% meters
+    splitter_->setStretchFactor(0, 2);
+    splitter_->setStretchFactor(1, 1);
+
+    root_layout->addWidget(splitter_, 1); // splitter fills remaining dock height
 
     // ── Separator + Footer ────────────────────────────────────────────────────
     auto* sep3 = new QFrame(container);

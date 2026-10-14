@@ -4,6 +4,7 @@
 #include <QTimer>
 #include <QLabel>
 #include <QPushButton>
+#include <QSplitter>
 #include <vector>
 #include "circular-speaker-widget.hpp"
 #include "channel-strip-widget.hpp"
@@ -43,7 +44,8 @@ private:
     QPushButton* meter_btn_            = nullptr;
 
     // Circular speaker monitor view (non-interactive, level visualisation only)
-    CircularSpeakerWidget* panner_ = nullptr;
+    CircularSpeakerWidget* panner_   = nullptr;
+    QSplitter*             splitter_ = nullptr; ///< Draggable divider: panner ↕ meters
 
     // Passive meter columns
     std::vector<QWidget*>        meter_cols_;
