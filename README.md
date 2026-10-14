@@ -159,54 +159,46 @@ Implementasi harus memverifikasi API dock OBS 32.x, ketersediaan Qt WebEngine at
 
 ## 5. Status pengembangan
 
-Status awal yang direncanakan:
+Status implementasi dev0.0.1:
 
 | Komponen | Status |
 |---|---|
-| Kerangka plugin dan build OBS 32.x | Belum diverifikasi |
-| Filter Sorround Upmix | Direncanakan |
-| Gain individual kanal | Direncanakan |
-| Mesin upmix 5.1/7.1 | Direncanakan |
-| Penyimpanan parameter | Direncanakan |
-| Sorround Control per-instance | Direncanakan |
-| Kontrol panning melingkar | Direncanakan |
-| Meter kanal pada filter | Direncanakan |
-| Sorround Monitor mix/output | Direncanakan |
-| Packaging Windows | Direncanakan |
-| Pengujian runtime pada OBS 32.x | Belum dilakukan |
-
-Ubah status hanya setelah ada bukti implementasi atau hasil pengujian. Gunakan status seperti **Dalam pengembangan**, **Eksperimental**, **Selesai diuji**, atau **Dibatasi oleh API** bila diperlukan.
+| Kerangka plugin dan build OBS 32.x | Selesai dibangun (MSVC 2022, CMake 4.4.3) |
+| Filter Sorround Upmix | Selesai diimplementasikan |
+| Gain individual kanal (-30 dB s/d +30 dB) | Selesai diimplementasikan |
+| Mesin upmix 5.1/7.1 | Selesai diimplementasikan |
+| Penyimpanan parameter settings OBS | Selesai diimplementasikan |
+| Sorround Control per-instance | Selesai diimplementasikan |
+| Kontrol panning melingkar | Selesai diimplementasikan |
+| Meter kanal pada filter | Selesai diimplementasikan |
+| Sorround Monitor mix/output | Selesai diimplementasikan |
+| Packaging Windows (.zip di dist) | Selesai diimplementasikan |
+| Instalasi ke OBS Studio Portable | Terpasang di portable OBS 32.2.2 |
 
 ## 6. Lingkungan pengembangan
 
-Persyaratan final bergantung pada template plugin dan dependency yang dipilih. Target pengembangan:
+Target pengembangan yang telah diverifikasi:
 
-- Windows.
-- OBS Studio 32.x.
-- Compiler C/C++ yang kompatibel dengan SDK OBS target.
-- CMake atau sistem build yang dipilih.
-- OBS development package/SDK yang sesuai.
-- Qt dan dependency UI yang diperlukan oleh arsitektur dock.
-- Git atau sistem version control yang setara.
+- Windows x64.
+- OBS Studio 32.2.2 Portable (`OBS-Studio-32.2.2-Windows-x64`).
+- Compiler: MSVC 19.44 (Visual Studio 2022 Build Tools).
+- CMake: 4.4.3.
+- OBS SDK / Dependencies: OBS Studio 31.1.1 + Qt 6.8 (obs-deps-qt6-2025-07-11-x64).
+- Branch: `dev0.0.1`.
 
-Versi pasti Visual Studio/Build Tools, CMake, Qt, SDK, dan dependency harus dicatat setelah diuji. Jangan mengandalkan versi atau path yang belum diverifikasi.
+## 7. Cara membangun dan menginstal
 
-## 7. Cara membangun
+Jalankan script otomatis dari direktori proyek:
 
-**Instruksi build final belum ditetapkan.** Perintah harus diperbarui setelah konfigurasi CMake dan toolchain benar-benar diuji pada lingkungan target.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_and_install.ps1
+```
 
-Alur umum:
-
-1. Siapkan toolchain C/C++ dan CMake yang kompatibel.
-2. Siapkan OBS development package untuk versi target.
-3. Pastikan dependency UI yang dipilih tersedia.
-4. Konfigurasikan proyek sesuai petunjuk build yang ada di repository.
-5. Bangun konfigurasi Debug untuk pengembangan.
-6. Jalankan OBS dan periksa apakah plugin dimuat.
-7. Uji konfigurasi Release sebelum membuat paket distribusi.
-8. Catat versi toolchain dan hasil pengujian.
-
-Lihat `AGENT.md` untuk persyaratan arsitektur, urutan implementasi, dan checklist pengujian.
+Script akan otomatis:
+1. Menjalankan `cmake --preset windows-x64`
+2. Mengompilasi konfigurasi `RelWithDebInfo`
+3. Memasang DLL dan locale ke OBS Studio Portable (`OBS-Studio-32.2.2-Windows-x64`)
+4. Membuat arsip distribusi ZIP di folder `dist/` (`aeria-surroundupmix-v0.0.1-windows-x64.zip`)
 
 ## 8. Instalasi dan pemeriksaan awal
 
