@@ -1,6 +1,7 @@
 #include "plugin-main.hpp"
 #include "plugin-macros.h"
 #include "audio/surround-filter.hpp"
+#include "audio/volmeter-hook.hpp"
 #include "frontend/dock-manager.hpp"
 
 #include <obs-module.h>
@@ -24,16 +25,21 @@ bool obs_module_load(void) {
     // Register audio filter
     obs_register_source(&surround_filter_info);
 
-    // Initialize docks if frontend API is available
+    // Install inline hook so OBS Audio Mixer displays 6 or 8 bars for surround upmix sources
+    AeriaSurround::InstallVolmeterHook();
+
+    // Register frontend event callback
+    obs_frontend_add_event_callback(FrontendEventCallback, nullptr);
+
+    // Initialize docks if frontend API is already available
     QMainWindow* main_window = static_cast<QMainWindow*>(obs_frontend_get_main_window());
     if (main_window) {
         AeriaSurround::DockManager::Instance().Init(main_window);
-        obs_frontend_add_event_callback(FrontendEventCallback, nullptr);
-
-        obs_frontend_add_tools_menu_item("Sorround Monitor", [](void*) {
-            AeriaSurround::DockManager::Instance().ShowMonitorDock();
-        }, nullptr);
     }
+
+    obs_frontend_add_tools_menu_item("Sorround Monitor", [](void*) {
+        AeriaSurround::DockManager::Instance().ShowMonitorDock();
+    }, nullptr);
 
     blog(LOG_INFO, "Plugin %s loaded successfully.", PLUGIN_NAME);
     return true;
@@ -42,6 +48,7 @@ bool obs_module_load(void) {
 void obs_module_unload(void) {
     blog(LOG_INFO, "Unloading %s", PLUGIN_NAME);
     obs_frontend_remove_event_callback(FrontendEventCallback, nullptr);
+    AeriaSurround::RemoveVolmeterHook();
     AeriaSurround::DockManager::Instance().Shutdown();
 }
 

@@ -236,6 +236,16 @@ void UpmixEngine::Process(float* const* channel_data, size_t input_channels, siz
         if (channel_data[6]) std::copy(out_sl, out_sl + frames, channel_data[6]);
         if (channel_data[7]) std::copy(out_sr, out_sr + frames, channel_data[7]);
     }
+
+    // Solo Channel Preview Mode: mute all channels except the soloed channel
+    if (params_.solo_channel >= 0) {
+        size_t solo = static_cast<size_t>(params_.solo_channel);
+        for (size_t c = 0; c < output_channels; ++c) {
+            if (c != solo && channel_data[c]) {
+                std::fill(channel_data[c], channel_data[c] + frames, 0.0f);
+            }
+        }
+    }
 }
 
 } // namespace AeriaSurround

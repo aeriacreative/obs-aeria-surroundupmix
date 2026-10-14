@@ -15,6 +15,7 @@ struct UpmixParams {
     float center_spread = 0.5f;   // [0.0, 1.0]
     float surround_spread = 0.7f; // [0.0, 1.0]
     float lfe_cutoff_hz = 120.0f; // [60.0, 250.0]
+    int   solo_channel = -1;      // -1 = all active, 0..7 = solo preview channel
     bool  enabled = true;
 };
 

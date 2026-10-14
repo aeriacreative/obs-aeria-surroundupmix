@@ -43,6 +43,7 @@ private:
     QPushButton* meter_btn_ = nullptr;
 
     CircularSpeakerWidget* panner_ = nullptr;
+    std::vector<QWidget*> meter_cols_;
     std::vector<MeterBarWidget*> meter_bars_;
     std::vector<QLabel*> meter_labels_;
 

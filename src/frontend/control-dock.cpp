@@ -123,8 +123,14 @@ void ControlDockWidget::BuildUI() {
     title_box->setSpacing(1);
     header_title_ = new QLabel(windowTitle(), container);
     header_title_->setStyleSheet("font-weight: bold; font-size: 13px; color: #ffffff;");
+    header_title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    header_title_->setMinimumWidth(0);
+
     header_status_ = new QLabel("Aeria Sorround Upmix (5.1 / 7.1 DSP)", container);
     header_status_->setStyleSheet("color: #00d2ff; font-size: 11px;");
+    header_status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    header_status_->setMinimumWidth(0);
+
     title_box->addWidget(header_title_);
     title_box->addWidget(header_status_);
     header_layout->addLayout(title_box, 1);
@@ -158,11 +164,29 @@ void ControlDockWidget::BuildUI() {
     // Panner Section
     panner_ = new CircularSpeakerWidget(true, container);
     connect(panner_, &CircularSpeakerWidget::PanChanged, this, &ControlDockWidget::OnPanChanged);
+    connect(panner_, &CircularSpeakerWidget::SoloChannelPressed, this, [this](ChannelIndex ch) {
+        if (filter_state_) {
+            filter_state_->SetSoloChannel(static_cast<int>(ch));
+        }
+        for (auto* s : strips_) {
+            s->SetSoloHighlighted(s->GetChannel() == ch);
+        }
+    });
+    connect(panner_, &CircularSpeakerWidget::SoloChannelReleased, this, [this]() {
+        if (filter_state_) {
+            filter_state_->SetSoloChannel(-1);
+        }
+        for (auto* s : strips_) {
+            s->SetSoloHighlighted(false);
+        }
+    });
     root_layout->addWidget(panner_, 1, Qt::AlignCenter);
 
     pan_label_ = new QLabel("Pan: Center (0.00, 0.00) — Drag handle or double-click to center", container);
     pan_label_->setAlignment(Qt::AlignCenter);
     pan_label_->setStyleSheet("color: #8c96ab; font-size: 11px;");
+    pan_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    pan_label_->setMinimumWidth(0);
     root_layout->addWidget(pan_label_);
 
     // Separator line
@@ -186,6 +210,18 @@ void ControlDockWidget::BuildUI() {
             strips_container
         );
         connect(strip, &ChannelStripWidget::GainChanged, this, &ControlDockWidget::OnGainChanged);
+        connect(strip, &ChannelStripWidget::SoloPressed, this, [this](ChannelIndex ch) {
+            if (filter_state_) {
+                filter_state_->SetSoloChannel(static_cast<int>(ch));
+            }
+            panner_->update();
+        });
+        connect(strip, &ChannelStripWidget::SoloReleased, this, [this]() {
+            if (filter_state_) {
+                filter_state_->SetSoloChannel(-1);
+            }
+            panner_->update();
+        });
         strips_layout->addWidget(strip);
         strips_.push_back(strip);
     }
@@ -207,11 +243,32 @@ void ControlDockWidget::BuildUI() {
     credit_label_->setTextInteractionFlags(Qt::TextBrowserInteraction);
     credit_label_->setOpenExternalLinks(true);
     credit_label_->setStyleSheet("font-size: 11px; padding: 2px;");
+    credit_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    credit_label_->setMinimumWidth(0);
     root_layout->addWidget(credit_label_);
 
-    setWidget(container);
-    setMinimumWidth(320);
-    setMinimumHeight(480);
+    auto* scroll_area = new QScrollArea(this);
+    scroll_area->setWidgetResizable(true);
+    scroll_area->setFrameShape(QFrame::NoFrame);
+    scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll_area->setWidget(container);
+
+    setWidget(scroll_area);
+    setMinimumWidth(160);
+    setMinimumHeight(200);
+
+    UpdateChannelVisibility();
+}
+
+void ControlDockWidget::UpdateChannelVisibility() {
+    UpmixMode mode = filter_state_ ? filter_state_->GetParams().mode : UpmixMode::Auto;
+    size_t active_ch = GetMasterOutputChannels(mode);
+    for (auto* strip : strips_) {
+        if (strip->GetChannel() == ChannelIndex::SideLeft || strip->GetChannel() == ChannelIndex::SideRight) {
+            strip->setVisible(active_ch >= 8);
+        }
+    }
 }
 
 void ControlDockWidget::LoadFromState() {
@@ -233,6 +290,7 @@ void ControlDockWidget::LoadFromState() {
         }
     }
 
+    UpdateChannelVisibility();
     RefreshTitle();
     updating_from_state_ = false;
 }
@@ -240,11 +298,14 @@ void ControlDockWidget::LoadFromState() {
 void ControlDockWidget::OnMeterTimer() {
     if (!filter_state_ || !meter_enabled_) return;
 
+    UpmixMode mode = filter_state_->GetParams().mode;
+    size_t active_ch = GetMasterOutputChannels(mode);
+
     ChannelMeterData levels[METER_MAX_CHANNELS];
     filter_state_->GetMeter().GetSnapshot(levels, METER_MAX_CHANNELS);
 
     // Update panner visualizer
-    panner_->SetChannelLevels(levels, 8);
+    panner_->SetChannelLevels(levels, active_ch);
 
     // Update each channel strip meter
     for (auto* strip : strips_) {
@@ -273,8 +334,10 @@ void ControlDockWidget::OnToggleMeter(bool checked) {
     meter_btn_->setText(checked ? "Preview Meter" : "Meter Paused");
     if (!checked) {
         // Clear meter displays
+        UpmixMode mode = filter_state_ ? filter_state_->GetParams().mode : UpmixMode::Auto;
+        size_t active_ch = GetMasterOutputChannels(mode);
         ChannelMeterData zero_levels[METER_MAX_CHANNELS];
-        panner_->SetChannelLevels(zero_levels, 8);
+        panner_->SetChannelLevels(zero_levels, active_ch);
         for (auto* strip : strips_) {
             strip->SetMeterData(ChannelMeterData());
         }
@@ -284,6 +347,7 @@ void ControlDockWidget::OnToggleMeter(bool checked) {
 void ControlDockWidget::OnModeChanged(int index) {
     if (updating_from_state_ || !filter_state_) return;
     filter_state_->SetMode(static_cast<UpmixMode>(index));
+    UpdateChannelVisibility();
 }
 
 void ControlDockWidget::OnCreditClicked() {

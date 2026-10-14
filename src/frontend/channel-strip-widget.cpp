@@ -83,6 +83,35 @@ void MeterBarWidget::paintEvent(QPaintEvent*) {
     }
 }
 
+// Clickable label for solo preview
+class SoloLabel : public QLabel {
+public:
+    std::function<void()> on_pressed;
+    std::function<void()> on_released;
+    using QLabel::QLabel;
+protected:
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            if (on_pressed) on_pressed();
+            event->accept();
+            return;
+        }
+        QLabel::mousePressEvent(event);
+    }
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            if (on_released) on_released();
+            event->accept();
+            return;
+        }
+        QLabel::mouseReleaseEvent(event);
+    }
+    void leaveEvent(QEvent* event) override {
+        QLabel::leaveEvent(event);
+        if (on_released) on_released();
+    }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ChannelStripWidget
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,10 +125,12 @@ ChannelStripWidget::ChannelStripWidget(ChannelIndex ch, const QString& label, co
     layout->setContentsMargins(4, 4, 4, 4);
     layout->setSpacing(4);
 
-    // Channel label
-    title_label_ = new QLabel(label, this);
-    title_label_->setAlignment(Qt::AlignCenter);
-    title_label_->setStyleSheet(QString(
+    // Channel label (interactive solo preview)
+    auto* solo_lbl = new SoloLabel(label, this);
+    solo_lbl->setAlignment(Qt::AlignCenter);
+    solo_lbl->setCursor(Qt::PointingHandCursor);
+    solo_lbl->setToolTip("Click & hold to solo preview channel");
+    solo_lbl->setStyleSheet(QString(
         "QLabel {"
         "  font-weight: bold;"
         "  font-size: 11px;"
@@ -109,6 +140,15 @@ ChannelStripWidget::ChannelStripWidget(ChannelIndex ch, const QString& label, co
         "  border-radius: 3px;"
         "  padding: 2px;"
         "}").arg(color.name()));
+    solo_lbl->on_pressed = [this]() {
+        SetSoloHighlighted(true);
+        emit SoloPressed(ch_);
+    };
+    solo_lbl->on_released = [this]() {
+        SetSoloHighlighted(false);
+        emit SoloReleased();
+    };
+    title_label_ = solo_lbl;
     layout->addWidget(title_label_);
 
     // Meter and Fader side by side
@@ -196,6 +236,23 @@ void ChannelStripWidget::SetChannelActive(bool active) {
         "  border-radius: 3px;"
         "  padding: 2px;"
         "}").arg(active ? color_.name() : "#505664"));
+}
+
+void ChannelStripWidget::SetSoloHighlighted(bool soloed) {
+    if (soloed) {
+        title_label_->setStyleSheet(QString(
+            "QLabel {"
+            "  font-weight: bold;"
+            "  font-size: 11px;"
+            "  color: #101216;"
+            "  background: %1;"
+            "  border: 1px solid #ffffff;"
+            "  border-radius: 3px;"
+            "  padding: 2px;"
+            "}").arg(color_.name()));
+    } else {
+        SetChannelActive(isEnabled());
+    }
 }
 
 void ChannelStripWidget::OnSliderValueChanged(int value) {

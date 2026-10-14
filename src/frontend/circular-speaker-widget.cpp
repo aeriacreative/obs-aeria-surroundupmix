@@ -99,8 +99,14 @@ void CircularSpeakerWidget::paintEvent(QPaintEvent*) {
         const auto& sp = SPEAKER_LAYOUT[i];
         size_t ch_idx = static_cast<size_t>(sp.ch);
 
+        // Hide SL and SR if active_channels_ <= 6 (5.1 surround)
+        if (active_channels_ <= 6 && (sp.ch == ChannelIndex::SideLeft || sp.ch == ChannelIndex::SideRight)) {
+            continue;
+        }
+
         // Determine if this channel is active in OBS
         bool is_active = (ch_idx < active_channels_);
+        bool is_soloed = (solo_active_channel_ == static_cast<int>(sp.ch));
         float sp_x = center_x + sp.nx * (radius * 0.82f);
         float sp_y = center_y - sp.ny * (radius * 0.82f);
 
@@ -108,11 +114,11 @@ void CircularSpeakerWidget::paintEvent(QPaintEvent*) {
         bool clip   = (ch_idx < METER_MAX_CHANNELS) && levels_[ch_idx].clip;
 
         // Draw audio energy glow halo
-        if (is_active && level > 0.01f) {
-            float glow_radius = node_r + std::min(level * 22.0f, node_r * 1.8f);
+        if (is_active && (level > 0.01f || is_soloed)) {
+            float glow_radius = node_r + (is_soloed ? node_r * 1.5f : std::min(level * 22.0f, node_r * 1.8f));
             QRadialGradient glow(sp_x, sp_y, glow_radius);
-            QColor glow_col = clip ? QColor(255, 40, 40, 180) : sp.base_color;
-            glow_col.setAlpha(static_cast<int>(std::min(220.0f, level * 240.0f)));
+            QColor glow_col = is_soloed ? QColor(0, 255, 255, 230) : (clip ? QColor(255, 40, 40, 180) : sp.base_color);
+            glow_col.setAlpha(is_soloed ? 230 : static_cast<int>(std::min(220.0f, level * 240.0f)));
             glow.setColorAt(0.0f, glow_col);
             glow_col.setAlpha(0);
             glow.setColorAt(1.0f, glow_col);
@@ -123,18 +129,18 @@ void CircularSpeakerWidget::paintEvent(QPaintEvent*) {
         }
 
         // Speaker node circle
-        QColor node_bg = is_active ? QColor(28, 32, 42) : QColor(20, 22, 26);
-        QColor border_col = is_active ? (clip ? QColor(255, 60, 60) : sp.base_color) : QColor(50, 54, 64);
-        if (is_active && level > 0.1f) {
+        QColor node_bg = is_soloed ? QColor(0, 120, 180) : (is_active ? QColor(28, 32, 42) : QColor(20, 22, 26));
+        QColor border_col = is_soloed ? QColor(255, 255, 255) : (is_active ? (clip ? QColor(255, 60, 60) : sp.base_color) : QColor(50, 54, 64));
+        if (is_active && level > 0.1f && !is_soloed) {
             border_col = border_col.lighter(130);
         }
 
         p.setBrush(node_bg);
-        p.setPen(QPen(border_col, is_active ? 2.0 : 1.0));
+        p.setPen(QPen(border_col, (is_active || is_soloed) ? 2.5 : 1.0));
         p.drawEllipse(QPointF(sp_x, sp_y), node_r, node_r);
 
         // Text label
-        p.setPen(is_active ? (clip ? QColor(255, 100, 100) : sp.base_color) : QColor(70, 75, 88));
+        p.setPen(is_soloed ? QColor(255, 255, 255) : (is_active ? (clip ? QColor(255, 100, 100) : sp.base_color) : QColor(70, 75, 88)));
         QRectF text_rect(sp_x - node_r, sp_y - node_r, node_r * 2.0f, node_r * 2.0f);
         p.drawText(text_rect, Qt::AlignCenter, sp.label);
     }
@@ -176,23 +182,71 @@ void CircularSpeakerWidget::paintEvent(QPaintEvent*) {
 }
 
 void CircularSpeakerWidget::mousePressEvent(QMouseEvent* event) {
-    if (!interactive_) return;
     if (event->button() == Qt::LeftButton) {
-        dragging_ = true;
-        setCursor(Qt::ClosedHandCursor);
-        UpdatePanFromMouse(event->position());
+        float center_x = width() * 0.5f;
+        float center_y = height() * 0.5f;
+        float radius = std::min(width(), height()) * 0.44f;
+        float node_r = std::max(11.0f, radius * 0.095f);
+
+        // Check if any speaker node was clicked (Solo preview)
+        for (size_t i = 0; i < 8; ++i) {
+            const auto& sp = SPEAKER_LAYOUT[i];
+            if (active_channels_ <= 6 && (sp.ch == ChannelIndex::SideLeft || sp.ch == ChannelIndex::SideRight)) {
+                continue;
+            }
+            float sp_x = center_x + sp.nx * (radius * 0.82f);
+            float sp_y = center_y - sp.ny * (radius * 0.82f);
+            float dist = std::hypot(event->position().x() - sp_x, event->position().y() - sp_y);
+            if (dist <= node_r * 1.5f) {
+                solo_active_channel_ = static_cast<int>(sp.ch);
+                update();
+                emit SoloChannelPressed(sp.ch);
+                return;
+            }
+        }
+
+        if (interactive_) {
+            dragging_ = true;
+            setCursor(Qt::ClosedHandCursor);
+            UpdatePanFromMouse(event->position());
+        }
     }
 }
 
 void CircularSpeakerWidget::mouseMoveEvent(QMouseEvent* event) {
+    if (solo_active_channel_ != -1) {
+        return;
+    }
     if (!interactive_) return;
     if (dragging_) {
         UpdatePanFromMouse(event->position());
     } else {
-        // Check hover over puck
         float center_x = width() * 0.5f;
         float center_y = height() * 0.5f;
         float radius = std::min(width(), height()) * 0.44f;
+        float node_r = std::max(11.0f, radius * 0.095f);
+
+        // Check if hovering speaker node
+        bool on_speaker = false;
+        for (size_t i = 0; i < 8; ++i) {
+            const auto& sp = SPEAKER_LAYOUT[i];
+            if (active_channels_ <= 6 && (sp.ch == ChannelIndex::SideLeft || sp.ch == ChannelIndex::SideRight)) {
+                continue;
+            }
+            float sp_x = center_x + sp.nx * (radius * 0.82f);
+            float sp_y = center_y - sp.ny * (radius * 0.82f);
+            if (std::hypot(event->position().x() - sp_x, event->position().y() - sp_y) <= node_r * 1.5f) {
+                on_speaker = true;
+                break;
+            }
+        }
+
+        if (on_speaker) {
+            setCursor(Qt::PointingHandCursor);
+            return;
+        }
+
+        // Check hover over puck
         float puck_x = center_x + pan_x_ * (radius * 0.78f);
         float puck_y = center_y - pan_y_ * (radius * 0.78f);
         float dist = std::hypot(event->position().x() - puck_x, event->position().y() - puck_y);
@@ -206,8 +260,24 @@ void CircularSpeakerWidget::mouseMoveEvent(QMouseEvent* event) {
 
 void CircularSpeakerWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        dragging_ = false;
-        setCursor(Qt::ArrowCursor);
+        if (solo_active_channel_ != -1) {
+            solo_active_channel_ = -1;
+            update();
+            emit SoloChannelReleased();
+        }
+        if (dragging_) {
+            dragging_ = false;
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+}
+
+void CircularSpeakerWidget::leaveEvent(QEvent* event) {
+    QWidget::leaveEvent(event);
+    if (solo_active_channel_ != -1) {
+        solo_active_channel_ = -1;
+        update();
+        emit SoloChannelReleased();
     }
 }
 

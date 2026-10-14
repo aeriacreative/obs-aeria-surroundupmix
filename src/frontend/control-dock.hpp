@@ -56,6 +56,7 @@ private:
 
     void BuildUI();
     void LoadFromState();
+    void UpdateChannelVisibility();
 };
 
 } // namespace AeriaSurround

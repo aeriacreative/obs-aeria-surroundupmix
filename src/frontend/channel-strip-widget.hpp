@@ -39,9 +39,16 @@ public:
 
     void SetMeterData(const ChannelMeterData& data);
     void SetChannelActive(bool active);
+    void SetSoloHighlighted(bool soloed);
 
 signals:
     void GainChanged(ChannelIndex ch, float db);
+    void SoloPressed(ChannelIndex ch);
+    void SoloReleased();
+
+protected:
+    QSize sizeHint() const override { return QSize(34, 150); }
+    QSize minimumSizeHint() const override { return QSize(22, 80); }
 
 private:
     ChannelIndex ch_;

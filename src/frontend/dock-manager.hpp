@@ -39,6 +39,8 @@ private:
 
     std::map<std::string, FilterState*> active_states_;
     std::map<std::string, ControlDockWidget*> control_docks_;
+
+    void AddMonitorToDocksMenu();
 };
 
 } // namespace AeriaSurround

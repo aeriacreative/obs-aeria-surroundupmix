@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <obs.h>
 
 namespace AeriaSurround {
 
@@ -50,6 +51,18 @@ inline const char* ChannelFullName(ChannelIndex ch) {
     case ChannelIndex::SideRight:  return "Side Right";
     default:                       return "Unknown";
     }
+}
+
+inline size_t GetMasterOutputChannels(UpmixMode mode = UpmixMode::Auto) {
+    if (mode == UpmixMode::Force7Point1) return 8;
+    if (mode == UpmixMode::Force5Point1) return 6;
+    obs_audio_info aoi = {};
+    if (obs_get_audio_info(&aoi)) {
+        if (aoi.speakers == SPEAKERS_7POINT1) {
+            return 8;
+        }
+    }
+    return 6;
 }
 
 } // namespace AeriaSurround

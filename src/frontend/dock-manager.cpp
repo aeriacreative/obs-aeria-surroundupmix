@@ -1,6 +1,9 @@
 #include "dock-manager.hpp"
 #include <obs-frontend-api.h>
 #include <QMainWindow>
+#include <QMenuBar>
+#include <QMenu>
+#include <QAction>
 #include <QApplication>
 #include <QThread>
 
@@ -18,6 +21,33 @@ void DockManager::Init(QMainWindow* main_window) {
     if (main_window_ && !monitor_dock_) {
         monitor_dock_ = new MonitorDockWidget(main_window_);
         obs_frontend_add_custom_qdock("obs_surround_monitor_dock", monitor_dock_);
+        AddMonitorToDocksMenu();
+    }
+}
+
+void DockManager::AddMonitorToDocksMenu() {
+    if (!main_window_ || !monitor_dock_) return;
+
+    QMenuBar* menu_bar = main_window_->menuBar();
+    if (!menu_bar) return;
+
+    for (QAction* action : menu_bar->actions()) {
+        QMenu* menu = action->menu();
+        if (menu && (menu->title().contains("Dock", Qt::CaseInsensitive) || menu->objectName() == "docksMenu")) {
+            bool already_has = false;
+            for (QAction* a : menu->actions()) {
+                if (a->text().contains("Sorround Monitor", Qt::CaseInsensitive)) {
+                    already_has = true;
+                    break;
+                }
+            }
+            if (!already_has) {
+                QAction* toggle_act = monitor_dock_->toggleViewAction();
+                toggle_act->setText("Sorround Monitor");
+                menu->addAction(toggle_act);
+            }
+            break;
+        }
     }
 }
 
@@ -124,7 +154,13 @@ void DockManager::ShowMonitorDock() {
 }
 
 void DockManager::OnFrontendEvent(enum obs_frontend_event event) {
-    if (event == OBS_FRONTEND_EVENT_EXIT) {
+    if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
+        if (!main_window_) {
+            Init(static_cast<QMainWindow*>(obs_frontend_get_main_window()));
+        } else {
+            AddMonitorToDocksMenu();
+        }
+    } else if (event == OBS_FRONTEND_EVENT_EXIT) {
         Shutdown();
     }
 }

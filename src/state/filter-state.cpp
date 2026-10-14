@@ -168,6 +168,16 @@ void FilterState::SetLfeCutoff(float cutoff_hz) {
     NotifyChange();
 }
 
+void FilterState::SetSoloChannel(int ch) {
+    std::lock_guard<std::mutex> lock(param_mutex_);
+    params_.solo_channel = ch;
+}
+
+int FilterState::GetSoloChannel() const {
+    std::lock_guard<std::mutex> lock(param_mutex_);
+    return params_.solo_channel;
+}
+
 void FilterState::SetParamsFromUI(const UpmixParams& params, bool sync_obs_settings) {
     {
         std::lock_guard<std::mutex> lock(param_mutex_);

@@ -34,6 +34,8 @@ public:
     void SetMode(UpmixMode mode);
     void SetSpread(float center, float surround);
     void SetLfeCutoff(float cutoff_hz);
+    void SetSoloChannel(int ch);
+    int GetSoloChannel() const;
 
     void SetParamsFromUI(const UpmixParams& params, bool sync_obs_settings = true);
 

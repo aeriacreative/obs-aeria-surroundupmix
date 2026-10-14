@@ -1,4 +1,5 @@
 #include "monitor-dock.hpp"
+#include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFrame>
@@ -106,6 +107,12 @@ void MonitorDockWidget::UpdateLayoutInfo() {
     if (header_layout_status_) {
         header_layout_status_->setText(QString("OBS Master Output: %1").arg(layout_str));
     }
+
+    for (size_t i = 0; i < meter_cols_.size() && i < 8; ++i) {
+        if (MONITOR_CH_DEFS[i].ch == ChannelIndex::SideLeft || MONITOR_CH_DEFS[i].ch == ChannelIndex::SideRight) {
+            meter_cols_[i]->setVisible(active_channels_ >= 8);
+        }
+    }
 }
 
 void MonitorDockWidget::BuildUI() {
@@ -146,12 +153,18 @@ void MonitorDockWidget::BuildUI() {
     title_box->setSpacing(1);
     header_title_ = new QLabel("Sorround Monitor", container);
     header_title_->setStyleSheet("font-weight: bold; font-size: 13px; color: #ffffff;");
+    header_title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    header_title_->setMinimumWidth(0);
 
     header_source_info_ = new QLabel("Point: OBS Master Audio Output (Track 1 Mix)", container);
     header_source_info_->setStyleSheet("color: #adb5c4; font-size: 11px;");
+    header_source_info_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    header_source_info_->setMinimumWidth(0);
 
     header_layout_status_ = new QLabel("OBS Master Output: Detecting...", container);
     header_layout_status_->setStyleSheet("color: #00d2ff; font-size: 11px;");
+    header_layout_status_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    header_layout_status_->setMinimumWidth(0);
 
     title_box->addWidget(header_title_);
     title_box->addWidget(header_source_info_);
@@ -186,16 +199,19 @@ void MonitorDockWidget::BuildUI() {
     auto* meters_container = new QWidget(container);
     auto* meters_layout = new QHBoxLayout(meters_container);
     meters_layout->setContentsMargins(0, 0, 0, 0);
-    meters_layout->setSpacing(6);
+    meters_layout->setSpacing(4);
 
+    meter_cols_.clear();
     meter_bars_.clear();
     meter_labels_.clear();
 
     for (size_t i = 0; i < 8; ++i) {
-        auto* col = new QVBoxLayout();
+        auto* col_widget = new QWidget(meters_container);
+        auto* col = new QVBoxLayout(col_widget);
+        col->setContentsMargins(0, 0, 0, 0);
         col->setSpacing(2);
 
-        auto* label = new QLabel(MONITOR_CH_DEFS[i].label, meters_container);
+        auto* label = new QLabel(MONITOR_CH_DEFS[i].label, col_widget);
         label->setAlignment(Qt::AlignCenter);
         label->setStyleSheet(QString(
             "QLabel {"
@@ -209,15 +225,16 @@ void MonitorDockWidget::BuildUI() {
             "}").arg(MONITOR_CH_DEFS[i].color.name()));
         col->addWidget(label);
 
-        auto* bar = new MeterBarWidget(meters_container);
+        auto* bar = new MeterBarWidget(col_widget);
         col->addWidget(bar, 1);
 
-        auto* db_text = new QLabel("-inf", meters_container);
+        auto* db_text = new QLabel("-inf", col_widget);
         db_text->setAlignment(Qt::AlignCenter);
         db_text->setStyleSheet("font-size: 9px; color: #8892a4;");
         col->addWidget(db_text);
 
-        meters_layout->addLayout(col);
+        meters_layout->addWidget(col_widget);
+        meter_cols_.push_back(col_widget);
         meter_bars_.push_back(bar);
         meter_labels_.push_back(db_text);
     }
@@ -239,11 +256,20 @@ void MonitorDockWidget::BuildUI() {
     credit_label_->setTextInteractionFlags(Qt::TextBrowserInteraction);
     credit_label_->setOpenExternalLinks(true);
     credit_label_->setStyleSheet("font-size: 11px; padding: 2px;");
+    credit_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    credit_label_->setMinimumWidth(0);
     root_layout->addWidget(credit_label_);
 
-    setWidget(container);
-    setMinimumWidth(320);
-    setMinimumHeight(440);
+    auto* scroll_area = new QScrollArea(this);
+    scroll_area->setWidgetResizable(true);
+    scroll_area->setFrameShape(QFrame::NoFrame);
+    scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll_area->setWidget(container);
+
+    setWidget(scroll_area);
+    setMinimumWidth(160);
+    setMinimumHeight(200);
 }
 
 void MonitorDockWidget::OnTimer() {
