@@ -1,0 +1,40 @@
+saya ingin membuat sebuah plugin obs menggunakan ai agent (google antigravity) plugin ini cukup kompleks. jadi berikut penjelasan singkat/garis besar plugin yang akan saya buat
+
+
+Nama Plugin : Aeria Sorround Upmix
+Folder plugin : aeria-sorroundupmix
+Target versi obs : OBS 32
+Sistem Operasi : windows
+Versi awal pengembangan : v0.0.1
+
+Fungsi Plugin obs : 
+	A. Filter audio bernama "Sorround Upmix" untuk mengubah audio mono/stereo menjadi sorround 5.1/7.1
+	- Pilihan untuk menerapkan ke channel 5.1/7.1 (jika audio sudah bawaannya sorround, maka tetap bisa di terapkan, filteri ini juga berfungsi mengontrol masing masing channel)
+	saat diterapkan filter akan membagi rata semua channel agar semua speaker sorround menyala (tidak hanya stereo) terdapat juga slider volume masing masing channel sorround Dari L center R  Sl Sr subwofer dll - nilai default tengah 0 bisa digeser dari -30db sampai +30db
+	- Tombol untuk Open docks, jika di klik (Docks Sorround Control) akan muncul
+	B. Docks "Sorround Control" (untuk mengotrol masing masing filter yang aktif)
+	- Docks ini muncul dan dibuat ketika tombol Open docks di klik, satu filter yang aktif memiliki 1 docksnya masing masing jadi tidak bertumpuk (1 docks tidak untuk mengontrol semua filter)
+	- Nama docks = nama filter+docks
+	Isi docks ini adalah:
+	- Judul
+	- Kontroler utama (seperti linkaran yang pinggir pinggirnya adalah speaker (penempatan sorround) dan lingkaran kecil di tengah yang dapat digesar bebas, menentukan arah suara di mana
+	- dibawahnya ada slider slider seperti di dalam properti filter. (Note: pergeseran kontroler utama akan mempengaruhi slider ini dan yang ada didalam properti filter
+	- Agar lebih menarik Docks dibuat dengan web/browser dock, bukan dengan ui standar obs yang sederhana dan kebanyakan hanya ui dasar dan slider, Buat tampilannya menarik, looknya seperti plugin VST audio profesional
+	- Di docks ini juga ada tombol kecil untuk menyalakan/mematikan preview audio level db sorround (di bagian tengah, di layer bahwan slider kontroler utama terdapat visualzer untuk melihat audionya)
+	
+	C. Docks "Sorround Monitor"
+	- Secara garis besar tampilannya mirip seperti sorround control, hanya saja tidak ada tombol utama dan slider, hanya musik visualzer untuk melihat persebaran audio antar speaker dalam layout lingkaran, melihat channel channel audio yang over dll
+	- Docks ini melihat audio secara keseluruhan, ininya output utama yang tercampur dan keluar dari obs studio, Misal obs hanya memutar audio stereo tanpa sorround, maka visualzer yang terlihat hanya ada di channel kanan kiri di depan saja, namun jika sorround audio keluar dari segala arah
+	- Agar lebih menarik Docks dibuat dengan web/browser dock, bukan dengan ui standar obs yang sederhana dan kebanyakan hanya ui dasar dan slider, Buat tampilannya menarik, looknya seperti plugin VST audio profesional
+	
+Bagian nama & selipan credit title
+	- Tampilkan credit title kecil pada bagian bawah dock kecil saja: Aeria Sorround Upmix linktr.ee/aeriacreative (link dapat di klik)
+
+
+Dari draft yang saya berikan. tolong buatkan Rincian yang sangat detail untuk Agent.md dan Readme.md (dalam bahasa indonesia saja)
+	
+	
+	
+
+	
+ 

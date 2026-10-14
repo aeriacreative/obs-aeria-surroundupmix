@@ -1,0 +1,43 @@
+# Git ignore for aeria-surroundupmix
+
+# Build directories
+build*/
+build_x64/
+out/
+bin/
+lib/
+
+# Dependencies
+.deps/
+
+# Output and release artifacts
+dist/
+*.zip
+*.7z
+*.tar.gz
+
+# IDE and editor files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vscode/
+.idea/
+CMakeUserPresets.json
+
+# Compiler and CMake generated files
+*.obj
+*.o
+*.pdb
+*.ilk
+*.idb
+*.exp
+*.lib
+*.dll
+*.exe
+
+# OS specific files
+Thumbs.db
+Desktop.ini
+.DS_Store
