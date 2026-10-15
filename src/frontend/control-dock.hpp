@@ -41,6 +41,7 @@ private slots:
     void OnPanChanged(float x, float y);
     void OnGainChanged(ChannelIndex ch, float db);
     void OnToggleMeter(bool checked);
+    void OnTogglePower(bool checked);  ///< ⏻ Enable/disable the active filter
     void OnModeChanged(int index);
     void OnOpenFilterSettings(); ///< ⚙ Opens the OBS filter dialog for the selected source
     void OnJumpToActiveSource(); ///< ⤵ Switches dock to the source active in the current scene
@@ -57,6 +58,7 @@ private:
     // Header UI
     QComboBox*   source_combo_   = nullptr; ///< Dropdown: which filter to control
     QPushButton* meter_btn_      = nullptr;
+    QPushButton* power_btn_      = nullptr; ///< ⏻ Toggle filter enabled/disabled
     QPushButton* settings_btn_   = nullptr; ///< ⚙ Opens OBS filter settings dialog
     QPushButton* jump_btn_       = nullptr; ///< ⤵ Jumps to active source in program scene
 

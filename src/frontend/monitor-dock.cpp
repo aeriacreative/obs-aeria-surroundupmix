@@ -190,13 +190,12 @@ void MonitorDockWidget::BuildUI() {
     splitter_->setChildrenCollapsible(false);
     splitter_->setStyleSheet(
         "QSplitter::handle:vertical {"
-        "  background: #2a2f3d;"
-        "  height: 5px;"
-        "  border-top: 1px solid #3a4155;"
-        "  border-bottom: 1px solid #3a4155;"
+        "  background: #3a4155;"
+        "  height: 2px;"
         "}"
         "QSplitter::handle:vertical:hover {"
         "  background: #00d2ff;"
+        "  height: 3px;"
         "}"
     );
 
@@ -217,6 +216,7 @@ void MonitorDockWidget::BuildUI() {
     meter_bars_.clear();
     meter_labels_.clear();
 
+    meters_l->addStretch(1);
     for (size_t i = 0; i < 8; ++i) {
         auto* col_w = new QWidget(meters_w);
         auto* col   = new QVBoxLayout(col_w);
@@ -249,6 +249,7 @@ void MonitorDockWidget::BuildUI() {
         meter_bars_.push_back(bar);
         meter_labels_.push_back(db_text);
     }
+    meters_l->addStretch(1);
     splitter_->addWidget(meters_w);
 
     // Initial split ratio ~65% panner / 35% meters

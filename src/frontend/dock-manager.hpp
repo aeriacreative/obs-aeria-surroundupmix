@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <mutex>
+#include <atomic>
 #include <obs-frontend-api.h>
 #include "control-dock.hpp"
 #include "monitor-dock.hpp"
@@ -35,14 +36,16 @@ private:
     DockManager() = default;
     ~DockManager() = default;
 
-    std::mutex mutex_;
+    std::mutex  mutex_;
+    std::atomic<bool> shutting_down_{false}; ///< Set in Shutdown() to block late callbacks
     QMainWindow* main_window_ = nullptr;
-    MonitorDockWidget* monitor_dock_ = nullptr;
+    MonitorDockWidget* monitor_dock_  = nullptr;
+    ControlDockWidget* control_dock_  = nullptr; ///< Single unified Sorround Control dock
 
     std::map<std::string, FilterState*> active_states_;
-    ControlDockWidget* control_dock_ = nullptr; ///< Single unified Sorround Control dock
 
     void AddMonitorToDocksMenu();
+    void AddControlDockToDocksMenu(); ///< Add Sorround Control toggle to Docks menu
 };
 
 } // namespace AeriaSurround

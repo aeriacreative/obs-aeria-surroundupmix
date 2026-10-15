@@ -135,7 +135,6 @@ static obs_properties_t* filter_properties(void* data) {
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.Auto"), static_cast<long long>(UpmixMode::Auto));
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.5Point1"), static_cast<long long>(UpmixMode::Force5Point1));
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.7Point1"), static_cast<long long>(UpmixMode::Force7Point1));
-    obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.MonoSurround"), static_cast<long long>(UpmixMode::MonoSurround));
     obs_property_list_add_int(p_mode, obs_module_text("Filter.Mode.Direct"), static_cast<long long>(UpmixMode::Direct));
 
     // Panning

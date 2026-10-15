@@ -269,6 +269,21 @@ void ControlDockWidget::BuildUI() {
     connect(meter_btn_, &QPushButton::toggled, this, &ControlDockWidget::OnToggleMeter);
     source_row->addWidget(meter_btn_);
 
+    // ⏻ — Enable/disable the active filter
+    power_btn_ = new QPushButton("\u23fb", container);
+    power_btn_->setCheckable(true);
+    power_btn_->setChecked(true);  // Starts as enabled
+    power_btn_->setToolTip("Filter power — Enable or disable the active Sorround Upmix filter");
+    power_btn_->setFixedWidth(30);
+    power_btn_->setStyleSheet(
+        "QPushButton { font-size: 13px; padding: 1px 2px; color: #c4cce0; }"
+        "QPushButton:checked { background: #0a5a2a; border-color: #00e060; color: #00e060; }"
+        "QPushButton:!checked { background: #5a1a1a; border-color: #e04040; color: #e04040; }"
+        "QPushButton:hover { border-color: #ffffff; }"
+    );
+    connect(power_btn_, &QPushButton::toggled, this, &ControlDockWidget::OnTogglePower);
+    source_row->addWidget(power_btn_);
+
     // ⚙ — Opens OBS filter settings dialog for the selected source
     settings_btn_ = new QPushButton("\u2699", container);
     settings_btn_->setToolTip("Open filter settings — Show the OBS filter dialog for the selected source");
@@ -320,34 +335,32 @@ void ControlDockWidget::BuildUI() {
     ctrl->setContentsMargins(0, 0, 0, 0);
     ctrl->setSpacing(6);
 
-    // Mode selector
+    // Mode selector — Mono Surround removed; direct enum→combo mapping below
     auto* mode_row = new QHBoxLayout();
     mode_row->setSpacing(6);
     mode_row->addWidget(new QLabel("Mode:", controls_widget_));
     mode_combo_ = new QComboBox(controls_widget_);
-    mode_combo_->addItem("Auto (Detect OBS Output)");           // UpmixMode::Auto = 0
-    mode_combo_->addItem("Force 5.1 Surround");                 // UpmixMode::Force5Point1 = 1
-    mode_combo_->addItem("Force 7.1 Surround");                 // UpmixMode::Force7Point1 = 2
-    mode_combo_->addItem("Mono Surround (Speaker Balance Test)");// UpmixMode::MonoSurround = 3
-    mode_combo_->addItem("Direct Pass-Through");                 // UpmixMode::Direct = 4
+    mode_combo_->addItem("Auto (Detect OBS Output)"); // combo 0 → UpmixMode::Auto
+    mode_combo_->addItem("Force 5.1 Surround");        // combo 1 → Force5Point1
+    mode_combo_->addItem("Force 7.1 Surround");        // combo 2 → Force7Point1
+    mode_combo_->addItem("Direct Pass-Through");        // combo 3 → Direct
     connect(mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ControlDockWidget::OnModeChanged);
     mode_row->addWidget(mode_combo_, 1);
     ctrl->addLayout(mode_row);
 
-    // ── Splitter: circular panner (top) ↕ channel strips (bottom) ───────────
-    // The handle is draggable so the user can give more height to either section.
+    // ── Splitter: circular panner (top) ↕ channel strips (bottom) ─────────────
+    // Handle is 2px thin — draggable but non-intrusive.
     splitter_ = new QSplitter(Qt::Vertical, controls_widget_);
     splitter_->setChildrenCollapsible(false);
     splitter_->setStyleSheet(
         "QSplitter::handle:vertical {"
-        "  background: #2a2f3d;"
-        "  height: 5px;"
-        "  border-top: 1px solid #3a4155;"
-        "  border-bottom: 1px solid #3a4155;"
+        "  background: #3a4155;"
+        "  height: 2px;"
         "}"
         "QSplitter::handle:vertical:hover {"
         "  background: #00d2ff;"
+        "  height: 3px;"
         "}"
     );
 
@@ -458,14 +471,40 @@ void ControlDockWidget::UpdateChannelVisibility() {
     }
 }
 
+// Combo index → UpmixMode (Mono Surround removed from UI)
+static const UpmixMode COMBO_TO_MODE[] = {
+    UpmixMode::Auto,         // 0
+    UpmixMode::Force5Point1, // 1
+    UpmixMode::Force7Point1, // 2
+    UpmixMode::Direct,       // 3
+};
+static constexpr int COMBO_COUNT = 4;
+
+static int ModeToComboIndex(UpmixMode m) {
+    switch (m) {
+    case UpmixMode::Force5Point1: return 1;
+    case UpmixMode::Force7Point1: return 2;
+    case UpmixMode::Direct:       return 3;
+    default:                      return 0; // Auto + legacy MonoSurround → Auto
+    }
+}
+
 void ControlDockWidget::LoadFromState() {
     if (!active_state_) return;
     updating_from_state_ = true;
 
     UpmixParams p = active_state_->GetParams();
 
-    // Mode combo index matches UpmixMode enum value directly
-    { QSignalBlocker b(mode_combo_); mode_combo_->setCurrentIndex(static_cast<int>(p.mode)); }
+    // Sync mode combo (using explicit mapping — no Mono Surround)
+    { QSignalBlocker b(mode_combo_); mode_combo_->setCurrentIndex(ModeToComboIndex(p.mode)); }
+
+    // Sync power button from OBS filter enabled state
+    if (power_btn_) {
+        obs_source_t* fc = active_state_->GetFilterContext();
+        bool enabled = fc ? obs_source_enabled(fc) : true;
+        QSignalBlocker pb(power_btn_);
+        power_btn_->setChecked(enabled);
+    }
 
     panner_->SetPan(p.pan_x, p.pan_y);
     pan_label_->setText(
@@ -537,8 +576,18 @@ void ControlDockWidget::OnToggleMeter(bool checked) {
 
 void ControlDockWidget::OnModeChanged(int index) {
     if (updating_from_state_ || !active_state_) return;
-    active_state_->SetMode(static_cast<UpmixMode>(index));
+    if (index < 0 || index >= COMBO_COUNT) return;
+    active_state_->SetMode(COMBO_TO_MODE[index]);
     UpdateChannelVisibility();
+}
+
+// ⏻ — Enable or disable the active Sorround Upmix filter.
+void ControlDockWidget::OnTogglePower(bool checked) {
+    if (!active_state_) return;
+    obs_source_t* fc = active_state_->GetFilterContext();
+    if (fc) {
+        obs_source_set_enabled(fc, checked);
+    }
 }
 
 // ⚙ — Open the OBS "Filters" dialog for the currently selected source.

@@ -120,16 +120,19 @@ void CircularSpeakerWidget::paintEvent(QPaintEvent*) {
         float level = (ch_idx < METER_MAX_CHANNELS) ? levels_[ch_idx].peak_linear : 0.0f;
         bool clip   = (ch_idx < METER_MAX_CHANNELS) && levels_[ch_idx].clip;
 
-        // Draw audio energy glow halo
-        if (is_active && (level > 0.01f || is_soloed)) {
-            float glow_radius = node_r + (is_soloed ? node_r * 1.5f : std::min(level * 22.0f, node_r * 1.8f));
+        // Draw audio energy glow halo — brighter and more responsive
+        if (is_active && (level > 0.005f || is_soloed)) {
+            float glow_radius = node_r + (is_soloed ? node_r * 2.2f
+                                                     : std::min(level * 55.0f, node_r * 3.0f));
             QRadialGradient glow(sp_x, sp_y, glow_radius);
-            QColor glow_col = is_soloed ? QColor(0, 255, 255, 230) : (clip ? QColor(255, 40, 40, 180) : sp.base_color);
-            glow_col.setAlpha(is_soloed ? 230 : static_cast<int>(std::min(220.0f, level * 240.0f)));
+            QColor glow_col = is_soloed ? QColor(0, 255, 255)
+                                        : (clip ? QColor(255, 40, 40) : sp.base_color);
+            int alpha = is_soloed ? 255
+                                  : static_cast<int>(std::min(255.0f, level * 400.0f + 40.0f));
+            glow_col.setAlpha(alpha);
             glow.setColorAt(0.0f, glow_col);
             glow_col.setAlpha(0);
             glow.setColorAt(1.0f, glow_col);
-
             p.setBrush(glow);
             p.setPen(Qt::NoPen);
             p.drawEllipse(QPointF(sp_x, sp_y), glow_radius, glow_radius);
@@ -240,9 +243,14 @@ void CircularSpeakerWidget::mousePressEvent(QMouseEvent* event) {
         }
 
         if (interactive_) {
-            dragging_ = true;
-            setCursor(Qt::ClosedHandCursor);
-            UpdatePanFromMouse(event->position());
+            // Only start pan drag if click is INSIDE the circle boundary
+            float dx = event->position().x() - center_x;
+            float dy = event->position().y() - center_y;
+            if (std::hypot(dx, dy) <= radius) {
+                dragging_ = true;
+                setCursor(Qt::ClosedHandCursor);
+                UpdatePanFromMouse(event->position());
+            }
         }
     }
 }

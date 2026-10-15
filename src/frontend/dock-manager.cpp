@@ -18,6 +18,7 @@ DockManager& DockManager::Instance() {
 
 void DockManager::Init(QMainWindow* main_window) {
     std::lock_guard<std::mutex> lock(mutex_);
+    shutting_down_ = false;
     main_window_ = main_window;
 
     // Create Monitor dock (once)
@@ -31,6 +32,7 @@ void DockManager::Init(QMainWindow* main_window) {
     if (main_window_ && !control_dock_) {
         control_dock_ = new ControlDockWidget(main_window_);
         obs_frontend_add_custom_qdock("obs_surround_control_dock", control_dock_);
+        AddControlDockToDocksMenu();
 
         // Register all already-known filter states (collected before FINISHED_LOADING)
         for (auto& pair : active_states_) {
@@ -38,6 +40,8 @@ void DockManager::Init(QMainWindow* main_window) {
         }
     }
 }
+
+// ─── Docks Menu Helpers ───────────────────────────────────────────────────────
 
 void DockManager::AddMonitorToDocksMenu() {
     if (!main_window_ || !monitor_dock_) return;
@@ -66,7 +70,37 @@ void DockManager::AddMonitorToDocksMenu() {
     }
 }
 
+void DockManager::AddControlDockToDocksMenu() {
+    if (!main_window_ || !control_dock_) return;
+
+    QMenuBar* menu_bar = main_window_->menuBar();
+    if (!menu_bar) return;
+
+    for (QAction* action : menu_bar->actions()) {
+        QMenu* menu = action->menu();
+        if (menu && (menu->title().contains("Dock", Qt::CaseInsensitive) ||
+                     menu->objectName() == "docksMenu")) {
+            bool already_has = false;
+            for (QAction* a : menu->actions()) {
+                if (a->text().contains("Sorround Control", Qt::CaseInsensitive)) {
+                    already_has = true;
+                    break;
+                }
+            }
+            if (!already_has) {
+                QAction* toggle_act = control_dock_->toggleViewAction();
+                toggle_act->setText("Sorround Control");
+                menu->addAction(toggle_act);
+            }
+            break;
+        }
+    }
+}
+
 void DockManager::Shutdown() {
+    // Set the flag FIRST — blocks any queued callbacks from accessing docks/states
+    shutting_down_ = true;
+
     std::lock_guard<std::mutex> lock(mutex_);
 
     // Remove and delete the unified control dock
@@ -90,7 +124,7 @@ void DockManager::Shutdown() {
 // ─── Filter Registry ─────────────────────────────────────────────────────────
 
 void DockManager::RegisterFilterState(FilterState* state) {
-    if (!state) return;
+    if (!state || shutting_down_) return;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         active_states_[state->GetInstanceId()] = state;
@@ -100,7 +134,8 @@ void DockManager::RegisterFilterState(FilterState* state) {
     // add this state to the dock's dropdown on the main thread.
     if (control_dock_) {
         ControlDockWidget* dock = control_dock_;
-        auto add_fn = [dock, state]() {
+        auto add_fn = [this, dock, state]() {
+            if (shutting_down_ || !dock) return;
             dock->AddFilterState(state);
         };
         if (qApp && QThread::currentThread() != qApp->thread()) {
@@ -110,10 +145,11 @@ void DockManager::RegisterFilterState(FilterState* state) {
         }
     }
 
-    // If state was previously visible (persisted setting), open/focus the dock
+    // If state was previously visible (persisted setting), show the dock.
+    // Do NOT force setFloating here — OBS will restore the dock geometry.
     if (state->IsDockVisible() && main_window_) {
         QMetaObject::invokeMethod(qApp, [this, state]() {
-            OpenControlDock(state);
+            if (!shutting_down_) OpenControlDock(state);
         }, Qt::QueuedConnection);
     }
 }
@@ -129,10 +165,13 @@ void DockManager::UnregisterFilterState(FilterState* state) {
         active_states_.erase(id);
     }
 
+    if (shutting_down_) return; // Docks are already being torn down — skip UI cleanup
+
     // UI cleanup (remove from dock dropdown) must happen on the main thread.
     ControlDockWidget* dock = control_dock_;
-    auto run_ui_cleanup = [dock, state]() {
-        if (dock) dock->RemoveFilterState(state);
+    auto run_ui_cleanup = [this, dock, state]() {
+        if (shutting_down_ || !dock) return;
+        dock->RemoveFilterState(state);
     };
 
     if (qApp && QThread::currentThread() != qApp->thread()) {
@@ -142,12 +181,14 @@ void DockManager::UnregisterFilterState(FilterState* state) {
     }
 }
 
-// ─── Dock Control ────────────────────────────────────────────────────────────
+// ─── Dock Control ─────────────────────────────────────────────────────────────
 
 void DockManager::OpenControlDock(FilterState* state) {
-    if (!state) return;
+    if (!state || shutting_down_) return;
 
     auto run_open = [this, state]() {
+        if (shutting_down_) return;
+
         // Ensure dock exists (should always be true after Init)
         if (!control_dock_) {
             if (!main_window_) {
@@ -158,15 +199,21 @@ void DockManager::OpenControlDock(FilterState* state) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 control_dock_ = new ControlDockWidget(main_window_);
                 obs_frontend_add_custom_qdock("obs_surround_control_dock", control_dock_);
+                AddControlDockToDocksMenu();
                 for (auto& pair : active_states_) {
                     control_dock_->AddFilterState(pair.second);
                 }
             }
         }
 
-        // Switch to the requested filter and bring the dock to front
+        // Switch to the requested filter
         control_dock_->SetActiveFilter(state);
-        control_dock_->setFloating(true);
+
+        // Only force float if the dock is hidden (not yet positioned by user).
+        // If it's already docked/positioned, just show it without disturbing layout.
+        if (!control_dock_->isVisible()) {
+            control_dock_->setFloating(true);
+        }
         control_dock_->show();
         control_dock_->raise();
         control_dock_->activateWindow();
@@ -181,6 +228,7 @@ void DockManager::OpenControlDock(FilterState* state) {
 
 void DockManager::ShowMonitorDock() {
     auto run_show = [this]() {
+        if (shutting_down_) return;
         std::lock_guard<std::mutex> lock(mutex_);
         if (monitor_dock_) {
             monitor_dock_->show();
@@ -196,9 +244,11 @@ void DockManager::ShowMonitorDock() {
     }
 }
 
-// ─── Audio Monitoring Refresh ────────────────────────────────────────────────
+// ─── Audio Monitoring Refresh ─────────────────────────────────────────────────
 
 void DockManager::RefreshAudioMonitoring() {
+    if (shutting_down_) return;
+
     // Snapshot valid filter sources with an addref so they stay alive
     // even if filters are destroyed within the 150ms delay window.
     std::vector<obs_source_t*> filter_srcs;
@@ -216,15 +266,19 @@ void DockManager::RefreshAudioMonitoring() {
     }
 
     if (qApp && !filter_srcs.empty()) {
-        QTimer::singleShot(150, [filter_srcs]() {
+        // Capture shutting_down_ by reference is unsafe (DockManager is static singleton,
+        // so it outlives the lambda); read it inside the lambda instead.
+        QTimer::singleShot(150, [this, filter_srcs]() {
             for (obs_source_t* filter_ctx : filter_srcs) {
-                obs_source_t* parent = obs_filter_get_parent(filter_ctx);
-                if (parent && obs_source_active(parent)) {
-                    uint32_t mon_type = obs_source_get_monitoring_type(parent);
-                    if (mon_type != OBS_MONITORING_TYPE_NONE) {
-                        obs_source_set_monitoring_type(parent, OBS_MONITORING_TYPE_NONE);
-                        obs_source_set_monitoring_type(parent,
-                            static_cast<enum obs_monitoring_type>(mon_type));
+                if (!shutting_down_) {
+                    obs_source_t* parent = obs_filter_get_parent(filter_ctx);
+                    if (parent && obs_source_active(parent)) {
+                        uint32_t mon_type = obs_source_get_monitoring_type(parent);
+                        if (mon_type != OBS_MONITORING_TYPE_NONE) {
+                            obs_source_set_monitoring_type(parent, OBS_MONITORING_TYPE_NONE);
+                            obs_source_set_monitoring_type(parent,
+                                static_cast<enum obs_monitoring_type>(mon_type));
+                        }
                     }
                 }
                 obs_source_release(filter_ctx);
@@ -243,9 +297,12 @@ void DockManager::OnFrontendEvent(enum obs_frontend_event event) {
             Init(static_cast<QMainWindow*>(obs_frontend_get_main_window()));
         } else {
             AddMonitorToDocksMenu();
+            AddControlDockToDocksMenu();
         }
 
-        // Find any filter that was visible before OBS closed and restore the dock
+        // Find any filter that was visible before OBS closed and restore the dock.
+        // The dock geometry is restored automatically by OBS (via objectName).
+        // We just need to make it visible and select the right filter.
         FilterState* state_to_restore = nullptr;
         {
             std::lock_guard<std::mutex> lock(mutex_);
