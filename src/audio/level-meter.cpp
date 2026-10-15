@@ -64,12 +64,20 @@ void LevelMeter::Process(const float* const* channel_data, size_t channels, uint
     }
 }
 
-void LevelMeter::GetSnapshot(ChannelMeterData out[METER_MAX_CHANNELS], size_t count) {
+void LevelMeter::GetSnapshot(ChannelMeterData out[METER_MAX_CHANNELS], size_t count, bool decay_idle) {
     size_t n = std::min(count, METER_MAX_CHANNELS);
     for (size_t c = 0; c < n; ++c) {
         float peak = peak_levels_[c].load(std::memory_order_relaxed);
         float rms  = rms_levels_[c].load(std::memory_order_relaxed);
         bool  clip = clip_flags_[c].exchange(false, std::memory_order_relaxed);
+
+        // When audio is idle (no new Process calls), decay the stored levels
+        if (decay_idle) {
+            peak = peak * DECAY_PEAK;
+            rms  = rms  * DECAY_RMS;
+            peak_levels_[c].store(peak, std::memory_order_relaxed);
+            rms_levels_[c].store(rms,  std::memory_order_relaxed);
+        }
 
         // Peak hold decay
         if (peak >= peak_hold_[c]) {

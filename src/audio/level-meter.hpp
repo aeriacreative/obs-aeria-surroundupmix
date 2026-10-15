@@ -38,7 +38,8 @@ public:
     void Reset();
 
     // UI thread
-    void GetSnapshot(ChannelMeterData out[METER_MAX_CHANNELS], size_t count);
+    // decay_idle = true: decay levels toward silence (call when audio is stopped/paused)
+    void GetSnapshot(ChannelMeterData out[METER_MAX_CHANNELS], size_t count, bool decay_idle = false);
 
 private:
     std::atomic<float> peak_levels_[METER_MAX_CHANNELS];
@@ -47,6 +48,11 @@ private:
 
     float peak_hold_[METER_MAX_CHANNELS];
     int   hold_countdown_[METER_MAX_CHANNELS];
+
+    // Decay applied in GetSnapshot when audio is inactive (no new Process calls)
+    // Each GetSnapshot call decays peak/rms by these factors
+    static constexpr float DECAY_PEAK = 0.82f; // ~30 dB/s at 30fps
+    static constexpr float DECAY_RMS  = 0.75f;
 };
 
 } // namespace AeriaSurround

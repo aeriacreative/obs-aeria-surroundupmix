@@ -339,11 +339,16 @@ void ControlDockWidget::BuildUI() {
     auto* mode_row = new QHBoxLayout();
     mode_row->setSpacing(6);
     mode_row->addWidget(new QLabel("Mode:", controls_widget_));
+    // Mode selector — labels are intentionally swapped vs enum names because
+    // the underlying engine behaviour is the inverse of what the enum names suggest:
+    //   UpmixMode::Direct (3)       = sum to mono + distribute (speaker balance test)
+    //   UpmixMode::MonoSurround (4) = gain-only pass-through
     mode_combo_ = new QComboBox(controls_widget_);
-    mode_combo_->addItem("Auto (Detect OBS Output)"); // combo 0 → UpmixMode::Auto
-    mode_combo_->addItem("Force 5.1 Surround");        // combo 1 → Force5Point1
-    mode_combo_->addItem("Force 7.1 Surround");        // combo 2 → Force7Point1
-    mode_combo_->addItem("Direct Pass-Through");        // combo 3 → Direct
+    mode_combo_->addItem("Auto (Detect OBS Output)");       // combo 0 → UpmixMode::Auto
+    mode_combo_->addItem("Force 5.1 Surround");              // combo 1 → Force5Point1
+    mode_combo_->addItem("Force 7.1 Surround");              // combo 2 → Force7Point1
+    mode_combo_->addItem("Direct Pass-Through");              // combo 3 → UpmixMode::MonoSurround (actual pass-through)
+    mode_combo_->addItem("Mono Surround (Speaker Balance Test)"); // combo 4 → UpmixMode::Direct (actual mono sum)
     connect(mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ControlDockWidget::OnModeChanged);
     mode_row->addWidget(mode_combo_, 1);
@@ -367,7 +372,7 @@ void ControlDockWidget::BuildUI() {
     // Top pane: circular panner + pan coordinate label
     auto* panner_pane = new QWidget(splitter_);
     auto* panner_pane_l = new QVBoxLayout(panner_pane);
-    panner_pane_l->setContentsMargins(0, 0, 0, 0);
+    panner_pane_l->setContentsMargins(0, 0, 0, 6); // 6px bottom gap above splitter handle
     panner_pane_l->setSpacing(3);
 
     panner_ = new CircularSpeakerWidget(true, panner_pane);
@@ -391,7 +396,7 @@ void ControlDockWidget::BuildUI() {
     pan_label_ = new QLabel("Pan: Center (0.00, 0.00) — Drag handle or double-click to center",
                             panner_pane);
     pan_label_->setAlignment(Qt::AlignCenter);
-    pan_label_->setStyleSheet("color: #8c96ab; font-size: 11px;");
+    pan_label_->setStyleSheet("color: #8c96ab; font-size: 11px; margin-bottom: 4px;");
     pan_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     pan_label_->setMinimumWidth(0);
     panner_pane_l->addWidget(pan_label_);
@@ -471,21 +476,27 @@ void ControlDockWidget::UpdateChannelVisibility() {
     }
 }
 
-// Combo index → UpmixMode (Mono Surround removed from UI)
+// Combo index → UpmixMode mapping.
+// NOTE: labels in the combo are intentionally swapped vs enum names
+// because the engine implementations are the inverse of the names:
+//   UpmixMode::Direct (3)       = actual mono sum/speaker balance
+//   UpmixMode::MonoSurround (4) = actual gain-only pass-through
 static const UpmixMode COMBO_TO_MODE[] = {
-    UpmixMode::Auto,         // 0
-    UpmixMode::Force5Point1, // 1
-    UpmixMode::Force7Point1, // 2
-    UpmixMode::Direct,       // 3
+    UpmixMode::Auto,          // 0 — Auto
+    UpmixMode::Force5Point1,  // 1 — Force 5.1
+    UpmixMode::Force7Point1,  // 2 — Force 7.1
+    UpmixMode::MonoSurround,  // 3 — labelled "Direct Pass-Through" (true pass-through)
+    UpmixMode::Direct,        // 4 — labelled "Mono Surround (Speaker Balance Test)"
 };
-static constexpr int COMBO_COUNT = 4;
+static constexpr int COMBO_COUNT = 5;
 
 static int ModeToComboIndex(UpmixMode m) {
     switch (m) {
-    case UpmixMode::Force5Point1: return 1;
-    case UpmixMode::Force7Point1: return 2;
-    case UpmixMode::Direct:       return 3;
-    default:                      return 0; // Auto + legacy MonoSurround → Auto
+    case UpmixMode::Force5Point1:  return 1;
+    case UpmixMode::Force7Point1:  return 2;
+    case UpmixMode::MonoSurround:  return 3; // "Direct Pass-Through" label
+    case UpmixMode::Direct:        return 4; // "Mono Surround" label
+    default:                       return 0; // Auto
     }
 }
 
@@ -529,8 +540,26 @@ void ControlDockWidget::OnMeterTimer() {
     UpmixMode mode = active_state_->GetParams().mode;
     size_t active_ch = GetMasterOutputChannels(mode);
 
+    // Detect if the source is actually outputting audio.
+    // If not, pass decay_idle=true so the meter bars fall back to silence
+    // naturally — matching OBS Audio Mixer and Sorround Monitor behaviour.
+    bool audio_active = false;
+    {
+        obs_source_t* fc = active_state_->GetFilterContext();
+        if (fc) {
+            obs_source_t* filter_ref = obs_source_get_ref(fc);
+            if (filter_ref) {
+                obs_source_t* parent = obs_filter_get_parent(filter_ref);
+                if (parent) {
+                    audio_active = obs_source_audio_active(parent);
+                }
+                obs_source_release(filter_ref);
+            }
+        }
+    }
+
     ChannelMeterData levels[METER_MAX_CHANNELS];
-    active_state_->GetMeter().GetSnapshot(levels, METER_MAX_CHANNELS);
+    active_state_->GetMeter().GetSnapshot(levels, METER_MAX_CHANNELS, /*decay_idle=*/!audio_active);
 
     panner_->SetChannelLevels(levels, active_ch);
     for (auto* strip : strips_) {

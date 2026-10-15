@@ -207,6 +207,8 @@ void MonitorDockWidget::BuildUI() {
     splitter_->addWidget(panner_);
 
     // Bottom pane: passive level meter bars per channel
+    // Each channel gets an equal-width column: label on top, meter bar below.
+    // This mirrors the channel-strip layout in Sorround Control.
     auto* meters_w = new QWidget(splitter_);
     auto* meters_l = new QHBoxLayout(meters_w);
     meters_l->setContentsMargins(4, 4, 4, 4);
@@ -216,13 +218,15 @@ void MonitorDockWidget::BuildUI() {
     meter_bars_.clear();
     meter_labels_.clear();
 
-    meters_l->addStretch(1);
     for (size_t i = 0; i < 8; ++i) {
+        // Each column: label + meter bar stacked vertically, equal width
         auto* col_w = new QWidget(meters_w);
+        col_w->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         auto* col   = new QVBoxLayout(col_w);
         col->setContentsMargins(0, 0, 0, 0);
         col->setSpacing(2);
 
+        // Channel label (centered, same style as control dock)
         auto* lbl = new QLabel(MONITOR_CH_DEFS[i].label, col_w);
         lbl->setAlignment(Qt::AlignCenter);
         lbl->setStyleSheet(QString(
@@ -236,20 +240,28 @@ void MonitorDockWidget::BuildUI() {
             "}").arg(MONITOR_CH_DEFS[i].color.name()));
         col->addWidget(lbl);
 
+        // Meter bar centered under the label
+        auto* bar_row = new QHBoxLayout();
+        bar_row->setContentsMargins(0, 0, 0, 0);
+        bar_row->setSpacing(0);
+        bar_row->addStretch(1);
         auto* bar = new MeterBarWidget(col_w);
-        col->addWidget(bar, 1);
+        bar->setFixedWidth(14); // consistent width matching control dock strips
+        bar_row->addWidget(bar);
+        bar_row->addStretch(1);
+        col->addLayout(bar_row, 1);
 
+        // dB readout at bottom
         auto* db_text = new QLabel("-inf", col_w);
         db_text->setAlignment(Qt::AlignCenter);
         db_text->setStyleSheet("font-size: 9px; color: #8892a4;");
         col->addWidget(db_text);
 
-        meters_l->addWidget(col_w);
+        meters_l->addWidget(col_w, 1); // equal stretch for all columns
         meter_cols_.push_back(col_w);
         meter_bars_.push_back(bar);
         meter_labels_.push_back(db_text);
     }
-    meters_l->addStretch(1);
     splitter_->addWidget(meters_w);
 
     // Initial split ratio ~65% panner / 35% meters
