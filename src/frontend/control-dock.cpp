@@ -76,20 +76,23 @@ bool ControlDockWidget::IsSourceInCurrentScene(obs_source_t* src) {
 
 QString ControlDockWidget::FilterDisplayName(FilterState* s) const {
     if (!s) return "(Unknown)";
-    QString base = QString::fromStdString(s->GetDisplayName());
+    QString base = QString::fromStdString(s->GetDisplayName()); // already ref-safe
 
-    // Check whether the filter's parent source is a scene item in the current
-    // program scene. If it is NOT (e.g. the source was added as global audio),
-    // append "[Global]" so the user can tell them apart in the dropdown.
+    // Guard against source being freed during OBS shutdown: use ref-counted access
     obs_source_t* fc = s->GetFilterContext();
     if (!fc) return base;
-
     obs_source_t* filter_ref = obs_source_get_ref(fc);
     if (!filter_ref) return base;
 
-    obs_source_t* parent = obs_filter_get_parent(filter_ref);
-    if (parent && !IsSourceInCurrentScene(parent)) {
-        base += " [Global]";
+    obs_source_t* parent_raw = obs_filter_get_parent(filter_ref);
+    if (parent_raw) {
+        obs_source_t* parent_ref = obs_source_get_ref(parent_raw);
+        if (parent_ref) {
+            if (!IsSourceInCurrentScene(parent_raw)) {
+                base += " [Global]";
+            }
+            obs_source_release(parent_ref);
+        }
     }
     obs_source_release(filter_ref);
     return base;

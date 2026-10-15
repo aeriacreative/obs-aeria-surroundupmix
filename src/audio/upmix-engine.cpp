@@ -106,7 +106,11 @@ void UpmixEngine::Process(float* const* channel_data, size_t input_channels, siz
         return;
     }
 
-    // Mono Surround mode: sum all input channels into mono, then distribute equally to all channels
+    // Mono Surround mode:
+    // 1. Scan input planes to find those with actual audio signal (not OBS zero-padding)
+    // 2. Mix those channels into a mono sum and normalize by their count
+    // 3. Distribute the mono signal equally to ALL writable output channels
+    // This guarantees every speaker shows the same level — ideal for speaker balance testing.
     if (params_.mode == UpmixMode::MonoSurround) {
         if (scratch_[0].size() < frames) {
             scratch_[0].resize(frames);
@@ -114,35 +118,49 @@ void UpmixEngine::Process(float* const* channel_data, size_t input_channels, siz
         float* mono_sum = scratch_[0].data();
         std::fill(mono_sum, mono_sum + frames, 0.0f);
 
-        size_t valid_inputs = 0;
+        // Detect signal-bearing channels: peek at first 64 samples to distinguish
+        // real audio from OBS zero-padding of unused surround planes.
+        size_t real_inputs = 0;
         for (size_t c = 0; c < input_channels && c < 8; ++c) {
-            if (channel_data[c]) {
-                const float* ch = channel_data[c];
-                for (uint32_t f = 0; f < frames; ++f) {
-                    mono_sum[f] += ch[f];
-                }
-                valid_inputs++;
+            const float* ch = channel_data[c];
+            if (!ch) continue;
+            bool has_signal = false;
+            uint32_t peek = std::min(frames, uint32_t(64));
+            for (uint32_t f = 0; f < peek; ++f) {
+                if (ch[f] != 0.0f) { has_signal = true; break; }
+            }
+            if (has_signal) {
+                for (uint32_t f = 0; f < frames; ++f) mono_sum[f] += ch[f];
+                real_inputs++;
             }
         }
 
-        if (valid_inputs > 0) {
-            float inv_in = 1.0f / static_cast<float>(valid_inputs);
-            for (uint32_t f = 0; f < frames; ++f) {
-                mono_sum[f] *= inv_in;
+        // Fallback: if no signal detected (e.g. momentary silence), sum all planes
+        // so that when audio resumes the behaviour is correct.
+        if (real_inputs == 0) {
+            for (size_t c = 0; c < input_channels && c < 8; ++c) {
+                if (channel_data[c]) real_inputs++;
             }
+            // Keep mono_sum at zero — nothing to write
         }
 
+        // Normalize
+        if (real_inputs > 0) {
+            float inv_in = 1.0f / static_cast<float>(real_inputs);
+            for (uint32_t f = 0; f < frames; ++f) mono_sum[f] *= inv_in;
+        }
+
+        // Write the mono signal to ALL writable output planes with per-channel gain
         size_t out_count = std::min(output_channels, size_t(8));
         for (size_t c = 0; c < out_count; ++c) {
-            if (channel_data[c]) {
-                float g = mul[c];
-                for (uint32_t f = 0; f < frames; ++f) {
-                    channel_data[c][f] = mono_sum[f] * g;
-                }
+            if (!channel_data[c]) continue;
+            float g = mul[c];
+            for (uint32_t f = 0; f < frames; ++f) {
+                channel_data[c][f] = mono_sum[f] * g;
             }
         }
 
-        // Apply solo preview if active
+        // Solo Channel Preview: mute all except the soloed channel
         if (params_.solo_channel >= 0) {
             size_t solo = static_cast<size_t>(params_.solo_channel);
             for (size_t c = 0; c < output_channels; ++c) {

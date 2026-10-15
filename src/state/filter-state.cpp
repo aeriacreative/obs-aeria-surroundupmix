@@ -34,16 +34,34 @@ FilterState::~FilterState() {
 
 std::string FilterState::GetDisplayName() const {
     if (!filter_context_) return "Sorround Upmix";
-    const char* filter_name = obs_source_get_name(filter_context_);
-    obs_source_t* parent = obs_filter_get_parent(filter_context_);
-    const char* parent_name = parent ? obs_source_get_name(parent) : nullptr;
+
+    // Use ref-counted access to prevent use-after-free during OBS shutdown.
+    // obs_filter_get_parent() returns the raw pointer without addref — the parent
+    // might be concurrently freed during ClearSceneData. Take a ref first.
+    obs_source_t* filter_ref = obs_source_get_ref(filter_context_);
+    if (!filter_ref) return "Sorround Upmix";
+
+    const char* filter_name = obs_source_get_name(filter_ref);
+    obs_source_t* parent_raw = obs_filter_get_parent(filter_ref);
 
     std::string result;
-    if (parent_name && *parent_name) {
-        result = std::string(parent_name) + " — " + (filter_name ? filter_name : "Sorround Upmix");
-    } else {
+    if (parent_raw) {
+        obs_source_t* parent_ref = obs_source_get_ref(parent_raw);
+        if (parent_ref) {
+            const char* parent_name = obs_source_get_name(parent_ref);
+            if (parent_name && *parent_name) {
+                result = std::string(parent_name) + " \xe2\x80\x94 " +
+                         (filter_name ? filter_name : "Sorround Upmix");
+            }
+            obs_source_release(parent_ref);
+        }
+    }
+
+    if (result.empty()) {
         result = filter_name ? filter_name : "Sorround Upmix";
     }
+
+    obs_source_release(filter_ref);
     return result;
 }
 
