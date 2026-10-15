@@ -339,16 +339,13 @@ void ControlDockWidget::BuildUI() {
     auto* mode_row = new QHBoxLayout();
     mode_row->setSpacing(6);
     mode_row->addWidget(new QLabel("Mode:", controls_widget_));
-    // Mode selector — labels are intentionally swapped vs enum names because
-    // the underlying engine behaviour is the inverse of what the enum names suggest:
-    //   UpmixMode::Direct (3)       = sum to mono + distribute (speaker balance test)
-    //   UpmixMode::MonoSurround (4) = gain-only pass-through
+    // Mode selector
     mode_combo_ = new QComboBox(controls_widget_);
-    mode_combo_->addItem("Auto (Detect OBS Output)");       // combo 0 → UpmixMode::Auto
-    mode_combo_->addItem("Force 5.1 Surround");              // combo 1 → Force5Point1
-    mode_combo_->addItem("Force 7.1 Surround");              // combo 2 → Force7Point1
-    mode_combo_->addItem("Direct Pass-Through");              // combo 3 → UpmixMode::MonoSurround (actual pass-through)
-    mode_combo_->addItem("Mono Surround (Speaker Balance Test)"); // combo 4 → UpmixMode::Direct (actual mono sum)
+    mode_combo_->addItem("Auto (Detect OBS Output)");            // combo 0 → UpmixMode::Auto
+    mode_combo_->addItem("Force 5.1 Surround");                   // combo 1 → Force5Point1
+    mode_combo_->addItem("Force 7.1 Surround");                   // combo 2 → Force7Point1
+    mode_combo_->addItem("Direct Pass-Through");                   // combo 3 → UpmixMode::Direct
+    mode_combo_->addItem("Mono Surround (Speaker Balance Test)"); // combo 4 → UpmixMode::MonoSurround
     connect(mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ControlDockWidget::OnModeChanged);
     mode_row->addWidget(mode_combo_, 1);
@@ -476,17 +473,13 @@ void ControlDockWidget::UpdateChannelVisibility() {
     }
 }
 
-// Combo index → UpmixMode mapping.
-// NOTE: labels in the combo are intentionally swapped vs enum names
-// because the engine implementations are the inverse of the names:
-//   UpmixMode::Direct (3)       = actual mono sum/speaker balance
-//   UpmixMode::MonoSurround (4) = actual gain-only pass-through
+// Combo index → UpmixMode (straight mapping, labels match enum intent)
 static const UpmixMode COMBO_TO_MODE[] = {
     UpmixMode::Auto,          // 0 — Auto
     UpmixMode::Force5Point1,  // 1 — Force 5.1
     UpmixMode::Force7Point1,  // 2 — Force 7.1
-    UpmixMode::MonoSurround,  // 3 — labelled "Direct Pass-Through" (true pass-through)
-    UpmixMode::Direct,        // 4 — labelled "Mono Surround (Speaker Balance Test)"
+    UpmixMode::Direct,        // 3 — Direct Pass-Through
+    UpmixMode::MonoSurround,  // 4 — Mono Surround (Speaker Balance Test)
 };
 static constexpr int COMBO_COUNT = 5;
 
@@ -494,8 +487,8 @@ static int ModeToComboIndex(UpmixMode m) {
     switch (m) {
     case UpmixMode::Force5Point1:  return 1;
     case UpmixMode::Force7Point1:  return 2;
-    case UpmixMode::MonoSurround:  return 3; // "Direct Pass-Through" label
-    case UpmixMode::Direct:        return 4; // "Mono Surround" label
+    case UpmixMode::Direct:        return 3;
+    case UpmixMode::MonoSurround:  return 4;
     default:                       return 0; // Auto
     }
 }
