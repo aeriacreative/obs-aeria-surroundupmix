@@ -2,6 +2,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
+#include <QTimer>
+#include <QApplication>
 #include <cmath>
 #include <algorithm>
 
@@ -216,7 +218,9 @@ void CircularSpeakerWidget::mousePressEvent(QMouseEvent* event) {
             float dist = std::hypot(event->position().x() - sp_x, event->position().y() - sp_y);
             if (dist <= node_r * 1.5f) {
                 int ch_idx = static_cast<int>(sp.ch);
-                // If this channel was already latched in solo, single-click unlatches and releases it!
+                // Cancel any pending deferred release from a previous click
+                solo_pending_release_id_++;
+                // If this channel was already latched in solo, single-click unlatches and releases immediately
                 if (solo_latched_ && solo_active_channel_ == ch_idx) {
                     solo_latched_ = false;
                     solo_active_channel_ = -1;
@@ -225,7 +229,7 @@ void CircularSpeakerWidget::mousePressEvent(QMouseEvent* event) {
                     return;
                 }
 
-                // Regular press down
+                // Regular press: cancel any pending deferred release, emit pressed
                 solo_latched_ = false;
                 solo_active_channel_ = ch_idx;
                 update();
@@ -237,6 +241,7 @@ void CircularSpeakerWidget::mousePressEvent(QMouseEvent* event) {
         // If clicked elsewhere while solo was latched, unlatch and restore audio
         if (solo_latched_) {
             solo_latched_ = false;
+            solo_pending_release_id_++;
             solo_active_channel_ = -1;
             update();
             emit SoloChannelReleased();
@@ -303,9 +308,17 @@ void CircularSpeakerWidget::mouseMoveEvent(QMouseEvent* event) {
 void CircularSpeakerWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         if (solo_active_channel_ != -1 && !solo_latched_) {
-            solo_active_channel_ = -1;
-            update();
-            emit SoloChannelReleased();
+            // Schedule a deferred release. If double-click fires before the timer,
+            // it increments solo_pending_release_id_ and the release is cancelled.
+            int capture_id = ++solo_pending_release_id_;
+            QTimer::singleShot(QApplication::doubleClickInterval() + 20, this,
+                [this, capture_id]() {
+                    if (solo_pending_release_id_ == capture_id && !solo_latched_) {
+                        solo_active_channel_ = -1;
+                        update();
+                        emit SoloChannelReleased();
+                    }
+                });
         }
         if (dragging_) {
             dragging_ = false;
@@ -316,6 +329,7 @@ void CircularSpeakerWidget::mouseReleaseEvent(QMouseEvent* event) {
 
 void CircularSpeakerWidget::leaveEvent(QEvent* event) {
     QWidget::leaveEvent(event);
+    solo_pending_release_id_++; // cancel any pending deferred release
     if (solo_active_channel_ != -1 && !solo_latched_) {
         solo_active_channel_ = -1;
         update();
@@ -340,6 +354,9 @@ void CircularSpeakerWidget::mouseDoubleClickEvent(QMouseEvent* event) {
             float sp_y = center_y - sp.ny * (radius * 0.82f);
             float dist = std::hypot(event->position().x() - sp_x, event->position().y() - sp_y);
             if (dist <= node_r * 1.5f) {
+                // Cancel the deferred release that was scheduled on mouseRelease,
+                // then commit the latch.
+                solo_pending_release_id_++;
                 solo_latched_ = true;
                 solo_active_channel_ = static_cast<int>(sp.ch);
                 update();

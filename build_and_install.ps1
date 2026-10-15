@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $PluginDir = $PSScriptRoot
 $ObsPortableDir = "d:\PROJECT\AERIA CREATIVE\OBS PLUGIN BY AERIA CREATIVE\OBS-Studio-32.2.2-Windows-x64"
 $DistDir = Join-Path $PluginDir "dist"
-$Version = "0.1.2"
+$Version = "0.1.3"
 
 # Locate CMake
 $CMakeExe = "cmake"

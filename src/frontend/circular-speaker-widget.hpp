@@ -48,6 +48,10 @@ private:
     bool dragging_ = false;
     int solo_active_channel_ = -1;
     bool solo_latched_ = false;
+    // Incremented each time we want to cancel a pending deferred solo-release.
+    // QTimer::singleShot lambda captures the value at scheduling time; if the
+    // stored id no longer matches when the timer fires, the release is skipped.
+    int solo_pending_release_id_ = 0;
 
     ChannelMeterData levels_[METER_MAX_CHANNELS];
     size_t active_channels_ = 8;

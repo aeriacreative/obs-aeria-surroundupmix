@@ -3,6 +3,8 @@
 #include <QPainterPath>
 #include <QHBoxLayout>
 #include <QMouseEvent>
+#include <QTimer>
+#include <QApplication>
 #include <cmath>
 #include <algorithm>
 
@@ -83,7 +85,16 @@ void MeterBarWidget::paintEvent(QPaintEvent*) {
     }
 }
 
-// Clickable label for solo preview with latch support
+// Clickable label for solo preview with latch support.
+//
+// Qt double-click event order: press → release → double-click.
+// We use a QTimer deferred release to distinguish single-click from
+// double-click:
+//  - On mouseRelease we don't call on_released immediately — we schedule it
+//    after QApplication::doubleClickInterval() ms.
+//  - If a double-click event arrives before the timer fires, we cancel the
+//    deferred release and set latched = true instead.
+//  - If no double-click comes, the timer fires and calls on_released normally.
 class SoloLabel : public QLabel {
 public:
     std::function<void()> on_pressed;
@@ -94,7 +105,10 @@ public:
 protected:
     void mousePressEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
+            // Cancel any pending deferred release from a previous single-click
+            pending_release_id_++;
             if (latched) {
+                // Single-click on a latched solo → unlatch and release immediately
                 latched = false;
                 if (on_released) on_released();
                 event->accept();
@@ -108,6 +122,8 @@ protected:
     }
     void mouseDoubleClickEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
+            // Cancel the deferred release scheduled by the prior mouseRelease.
+            pending_release_id_++;
             latched = true;
             if (on_double_clicked) on_double_clicked();
             event->accept();
@@ -117,7 +133,17 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent* event) override {
         if (event->button() == Qt::LeftButton) {
-            if (!latched && on_released) on_released();
+            if (!latched) {
+                // Schedule a deferred release. If a double-click fires before
+                // the timer, it increments pending_release_id_ to cancel this.
+                int capture_id = ++pending_release_id_;
+                QTimer::singleShot(QApplication::doubleClickInterval() + 20, this,
+                    [this, capture_id]() {
+                        if (pending_release_id_ == capture_id && !latched) {
+                            if (on_released) on_released();
+                        }
+                    });
+            }
             event->accept();
             return;
         }
@@ -125,8 +151,11 @@ protected:
     }
     void leaveEvent(QEvent* event) override {
         QLabel::leaveEvent(event);
+        pending_release_id_++; // cancel deferred release
         if (!latched && on_released) on_released();
     }
+private:
+    int pending_release_id_ = 0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
