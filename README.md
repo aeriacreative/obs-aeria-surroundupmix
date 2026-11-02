@@ -1,6 +1,6 @@
 # Aeria Sorround Upmix for OBS Studio
 
-[![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)](https://github.com)
+[![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)](https://github.com/aeriacreative/obs-aeria-surroundupmix)
 [![OBS Studio](https://img.shields.io/badge/OBS%20Studio-30%20|%2031%20|%2032+-green.svg)](https://obsproject.com)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg)](LICENSE)
@@ -101,8 +101,8 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 ### Build Steps
 1. Clone this repository:
    ```powershell
-   git clone https://github.com/your-username/obs-aeria-surround-upmix.git
-   cd obs-aeria-surround-upmix
+   git clone https://github.com/aeriacreative/obs-aeria-surroundupmix.git
+   cd obs-aeria-surroundupmix
    ```
 2. Build and package using the automated PowerShell script:
    ```powershell
@@ -154,4 +154,4 @@ Compatible with the Open Broadcaster Software (OBS Studio) licensing terms.
 
 Developed by **Aeria Creative**  
 - 🌐 Linktree & Socials: [linktr.ee/aeriacreative](https://linktr.ee/aeriacreative)  
-- 📧 Contact: contact@aeriacreative.com
+- 📧 Contact: aeriacreative@gmail.com
