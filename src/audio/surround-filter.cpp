@@ -125,7 +125,7 @@ static obs_properties_t* filter_properties(void* data) {
     auto* ctx = static_cast<SurroundFilterContext*>(data);
     obs_properties_t* props = obs_properties_create();
 
-    // Button to open Sorround Control Dock
+    // Button to open Surround Control Dock
     obs_properties_add_button2(props, "open_dock", obs_module_text("Filter.OpenControlDock"), on_open_dock_clicked, ctx);
 
     // Mode

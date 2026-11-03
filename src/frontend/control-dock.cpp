@@ -32,7 +32,7 @@ ControlDockWidget::ControlDockWidget(QWidget* parent)
     : QDockWidget(parent)
 {
     setObjectName("obs_surround_control_dock");
-    setWindowTitle("Sorround Control");
+    setWindowTitle("Surround Control");
 
     BuildUI();
 
@@ -183,7 +183,7 @@ void ControlDockWidget::SyncCombo() {
     source_combo_->clear();
 
     if (filter_list_.empty()) {
-        source_combo_->addItem("(No Sorround Upmix filter found)");
+        source_combo_->addItem("(No Surround Upmix filter found)");
         source_combo_->setEnabled(false);
         return;
     }
@@ -276,7 +276,7 @@ void ControlDockWidget::BuildUI() {
     power_btn_ = new QPushButton("\u23fb", container);
     power_btn_->setCheckable(true);
     power_btn_->setChecked(true);  // Starts as enabled
-    power_btn_->setToolTip("Filter power — Enable or disable the active Sorround Upmix filter");
+    power_btn_->setToolTip("Filter power — Enable or disable the active Surround Upmix filter");
     power_btn_->setFixedWidth(30);
     power_btn_->setStyleSheet(
         "QPushButton { font-size: 13px; padding: 1px 2px; color: #c4cce0; }"
@@ -322,9 +322,9 @@ void ControlDockWidget::BuildUI() {
 
     // ── Placeholder: no filters yet ───────────────────────────────────────────
     no_filter_label_ = new QLabel(
-        "No Sorround Upmix filter found.\n\n"
-        "Add a Sorround Upmix filter to any audio source,\n"
-        "then click \"Open Sorround Control\" in the filter\n"
+        "No Surround Upmix filter found.\n\n"
+        "Add a Surround Upmix filter to any audio source,\n"
+        "then click \"Open Surround Control\" in the filter\n"
         "properties panel.",
         container);
     no_filter_label_->setAlignment(Qt::AlignCenter);
@@ -446,7 +446,7 @@ void ControlDockWidget::BuildUI() {
     credit_label_ = new QLabel(
         "<a href=\"https://linktr.ee/aeriacreative\" "
         "style=\"color: #00d2ff; text-decoration: none;\">"
-        "Aeria Sorround Upmix · linktr.ee/aeriacreative</a>",
+        "Aeria Surround Upmix · linktr.ee/aeriacreative</a>",
         container);
     credit_label_->setAlignment(Qt::AlignCenter);
     credit_label_->setTextFormat(Qt::RichText);

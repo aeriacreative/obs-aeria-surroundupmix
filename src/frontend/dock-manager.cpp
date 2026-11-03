@@ -55,14 +55,15 @@ void DockManager::AddMonitorToDocksMenu() {
                      menu->objectName() == "docksMenu")) {
             bool already_has = false;
             for (QAction* a : menu->actions()) {
-                if (a->text().contains("Sorround Monitor", Qt::CaseInsensitive)) {
+                if (a->text().contains("Surround Monitor", Qt::CaseInsensitive) ||
+                    a->text().contains("Sorround Monitor", Qt::CaseInsensitive)) {
                     already_has = true;
                     break;
                 }
             }
             if (!already_has) {
                 QAction* toggle_act = monitor_dock_->toggleViewAction();
-                toggle_act->setText("Sorround Monitor");
+                toggle_act->setText("Surround Monitor");
                 menu->addAction(toggle_act);
             }
             break;
@@ -82,14 +83,15 @@ void DockManager::AddControlDockToDocksMenu() {
                      menu->objectName() == "docksMenu")) {
             bool already_has = false;
             for (QAction* a : menu->actions()) {
-                if (a->text().contains("Sorround Control", Qt::CaseInsensitive)) {
+                if (a->text().contains("Surround Control", Qt::CaseInsensitive) ||
+                    a->text().contains("Sorround Control", Qt::CaseInsensitive)) {
                     already_has = true;
                     break;
                 }
             }
             if (!already_has) {
                 QAction* toggle_act = control_dock_->toggleViewAction();
-                toggle_act->setText("Sorround Control");
+                toggle_act->setText("Surround Control");
                 menu->addAction(toggle_act);
             }
             break;

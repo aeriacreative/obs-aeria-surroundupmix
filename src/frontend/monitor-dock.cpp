@@ -31,7 +31,7 @@ MonitorDockWidget::MonitorDockWidget(QWidget* parent)
     : QDockWidget(parent)
 {
     setObjectName("obs_surround_monitor_dock");
-    setWindowTitle("Sorround Monitor");
+    setWindowTitle("Surround Monitor");
 
     BuildUI();
     UpdateLayoutInfo();
@@ -155,7 +155,7 @@ void MonitorDockWidget::BuildUI() {
     auto* title_box = new QVBoxLayout();
     title_box->setSpacing(2);
 
-    auto* header_title = new QLabel("Sorround Monitor", container);
+    auto* header_title = new QLabel("Surround Monitor", container);
     header_title->setStyleSheet("font-weight: bold; font-size: 13px; color: #ffffff;");
     header_title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     header_title->setMinimumWidth(0);
@@ -279,7 +279,7 @@ void MonitorDockWidget::BuildUI() {
     credit_label_ = new QLabel(
         "<a href=\"https://linktr.ee/aeriacreative\" "
         "style=\"color: #00d2ff; text-decoration: none;\">"
-        "Aeria Sorround Upmix · linktr.ee/aeriacreative</a>",
+        "Aeria Surround Upmix · linktr.ee/aeriacreative</a>",
         container);
     credit_label_->setAlignment(Qt::AlignCenter);
     credit_label_->setTextFormat(Qt::RichText);

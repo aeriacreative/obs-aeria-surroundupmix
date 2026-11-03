@@ -1,4 +1,4 @@
-# Aeria Sorround Upmix for OBS Studio
+# Aeria Surround Upmix for OBS Studio
 
 [![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)](https://github.com/aeriacreative/obs-aeria-surroundupmix)
 [![OBS Studio](https://img.shields.io/badge/OBS%20Studio-30%20|%2031%20|%2032+-green.svg)](https://obsproject.com)
@@ -6,9 +6,16 @@
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg)](LICENSE)
 [![Creator](https://img.shields.io/badge/Created%20by-Aeria%20Creative-00d2ff.svg)](https://linktr.ee/aeriacreative)
 
-**Aeria Sorround Upmix** is a professional real-time surround sound upmixing and multi-channel audio management plugin for **OBS Studio**. It transforms standard mono and stereo audio sources into rich 5.1 and 7.1 surround soundscapes with intuitive VST-inspired visual controls.
+**Aeria Surround Upmix** is a professional real-time surround sound upmixing and multi-channel audio management plugin for **OBS Studio**. It transforms standard mono and stereo audio sources into rich 5.1 and 7.1 surround soundscapes with intuitive VST-inspired visual controls.
 
 Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
+
+---
+
+<div align="center">
+  <img src="assets/surround-control-dock.png" alt="Aeria Surround Control Dock" width="400" />
+  <p><em>Surround Control Dock in OBS Studio — featuring 2D Circular Panner, Glowing Speaker Nodes, Gain Faders, and Real-Time Level Meters</em></p>
+</div>
 
 ---
 
@@ -30,7 +37,7 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 
 ### 🖥️ Interactive Native Qt6 Docks
 
-#### 1. Sorround Control Dock
+#### 1. Surround Control Dock
 - **Interactive 2D Circular Panner:** Drag the puck to position the sound stage front/rear and left/right. Double-click inside to instantly reset to center `(0.00, 0.00)`.
 - **Per-Channel Gain Faders:** Adjust gain from `-30.0 dB` to `+30.0 dB` with fine 0.1 dB resolution. Double-click any fader to reset to `0.0 dB`.
 - **Peak & RMS Meters:** Real-time dual metering with clip warnings that decay smoothly to silence when playback is paused.
@@ -43,7 +50,7 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 - **Jump to Active Scene Source (`⤵`):** Intelligently switches the dock focus to the audio source currently active in your live program scene (falls back to global audio if none).
 - **Flexible UI Splitter:** Resizable vertical divider between the circular panner and channel faders.
 
-#### 2. Sorround Monitor Dock
+#### 2. Surround Monitor Dock
 - Global master monitoring dock to inspect audio distribution and active channel activity across your OBS setup.
 - Symmetrical channel labels with centered meter bars and glowing audio nodes.
 
@@ -52,7 +59,7 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 ## 📦 Installation
 
 ### Pre-built Binary (Recommended)
-1. Download the latest release `.zip` (`aeria-surroundupmix-vX.X.X-windows-x64.zip`) from the Releases section.
+1. Download the latest release `.zip` (`aeria-surroundupmix-vX.X.X-windows-x64.zip`) from the [Releases](https://github.com/aeriacreative/obs-aeria-surroundupmix/releases) section.
 2. Close **OBS Studio** if it is running.
 3. Extract the contents directly into your OBS Studio root directory (e.g. `C:\Program Files\obs-studio\`):
    ```text
@@ -81,11 +88,11 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 
 2. **Add the Filter:**
    - Right-click any audio source in the **Audio Mixer** (e.g. Desktop Audio, Media Source, Game Capture) → select **Filters**.
-   - Click `+` under Audio Filters and select **Sorround Upmix**.
-   - Click **Open Sorround Control** inside the filter properties.
+   - Click `+` under Audio Filters and select **Surround Upmix**.
+   - Click **Open Surround Control** inside the filter properties.
 
 3. **Access Docks:**
-   - Go to top menu: **Docks** → **Sorround Control** or **Sorround Monitor**.
+   - Go to top menu: **Docks** → **Surround Control** or **Surround Monitor**.
    - Dock the panels anywhere in your OBS workspace.
 
 ---
@@ -116,6 +123,7 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 
 ```text
 aeria-surroundupmix/
+├── assets/                     # Preview images and media assets
 ├── cmake/                      # CMake build scripts and helper modules
 ├── data/
 │   └── locale/                 # Localization files (en-US, id-ID)
@@ -128,8 +136,8 @@ aeria-surroundupmix/
 │   ├── frontend/
 │   │   ├── channel-strip-widget.*    # Individual channel gain fader & meter
 │   │   ├── circular-speaker-widget.* # 2D circular panner and speaker nodes
-│   │   ├── control-dock.*            # Main Sorround Control dock widget
-│   │   ├── monitor-dock.*            # Master Sorround Monitor dock widget
+│   │   ├── control-dock.*            # Main Surround Control dock widget
+│   │   ├── monitor-dock.*            # Master Surround Monitor dock widget
 │   │   └── dock-manager.*            # OBS dock registry and lifecycle manager
 │   ├── state/
 │   │   └── filter-state.*      # Filter parameter management & ref-counting
