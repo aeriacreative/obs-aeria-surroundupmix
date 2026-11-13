@@ -1,10 +1,15 @@
-# Build and Install Script for aeria-surroundupmix
+﻿# Build and Install Script for aeria-surroundupmix
 # Aeria Creative — linktr.ee/aeriacreative
 
 $ErrorActionPreference = "Stop"
 
 $PluginDir = $PSScriptRoot
-$ObsPortableDir = "d:\PROJECT\AERIA CREATIVE\OBS PLUGIN BY AERIA CREATIVE\OBS-Studio-32.2.2-Windows-x64"
+$WorkspaceRoot = "D:\PROJECT\AERIA CREATIVE\OBS PLUGIN BY AERIA CREATIVE"
+$ObsPortableDir = Join-Path $WorkspaceRoot "OBS-Studio-33.0.1-Windows-x64"
+if (-not (Test-Path $ObsPortableDir)) {
+    $DetectedObs = Get-ChildItem -Path $WorkspaceRoot -Directory -Filter "OBS-Studio-*-Windows-x64" -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+    if ($DetectedObs) { $ObsPortableDir = $DetectedObs.FullName }
+}
 $DistDir = Join-Path $PluginDir "dist"
 $Version = "0.1.3"
 
