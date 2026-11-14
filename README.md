@@ -60,8 +60,8 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 
 Choose the package that suits your setup:
 
-### Option A: ProgramData (Recommended for Standard OBS Installer)
-This keeps plugins isolated from OBS program updates so they never get deleted when updating OBS Studio.
+### Option A: ProgramData (Recommended for OBS 33+ New Format)
+This keeps plugins isolated from OBS program updates so they never get deleted when updating OBS Studio, and complies with the new non-legacy plugin specification.
 
 1. Download `aeria-surroundupmix-vX.X.X-programdata-x64.zip` from [Releases](https://github.com/aeriacreative/obs-aeria-surroundupmix/releases).
 2. Close **OBS Studio** if running.
@@ -74,9 +74,8 @@ This keeps plugins isolated from OBS program updates so they never get deleted w
    ```text
    C:\ProgramData\obs-studio\plugins\
    └── aeria-surroundupmix\
-       ├── bin\64bit\
-       │   ├── aeria-surroundupmix.dll
-       │   └── aeria-surroundupmix.pdb
+       ├── aeria-surroundupmix.dll
+       ├── aeria-surroundupmix.pdb
        └── data\locale\
            ├── en-US.ini
            └── id-ID.ini
@@ -85,12 +84,12 @@ This keeps plugins isolated from OBS program updates so they never get deleted w
 
 ---
 
-### Option B: Standard / Portable OBS (Program Files or Portable Folder)
-Best for portable OBS setups or traditional plugin directory placement.
+### Option B: Standard / Legacy (OBS 32 and below / Portable)
+For traditional plugin directory placement in older OBS versions.
 
 1. Download `aeria-surroundupmix-vX.X.X-windows-x64.zip` from [Releases](https://github.com/aeriacreative/obs-aeria-surroundupmix/releases).
 2. Close **OBS Studio** if running.
-3. Extract the contents directly into your OBS Studio root directory (e.g. `C:\Program Files\obs-studio\` or your Portable OBS folder):
+3. Extract the contents directly into your OBS Studio root directory (e.g. `C:\Program Files\obs-studio\`):
    ```text
    obs-studio/
    ├── obs-plugins/
