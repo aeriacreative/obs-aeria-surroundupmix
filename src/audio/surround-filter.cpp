@@ -11,7 +11,7 @@ using namespace AeriaSurround;
 
 struct SurroundFilterContext {
     obs_source_t* context = nullptr;
-    FilterState*  state   = nullptr;
+    std::shared_ptr<FilterState> state;
     UpmixEngine   engine;
     uint32_t      sample_rate = 48000;
 };
@@ -25,9 +25,9 @@ static void filter_destroy(void* data) {
     if (!ctx) return;
 
     if (ctx->state) {
+        ctx->state->Detach();
         DockManager::Instance().UnregisterFilterState(ctx->state);
-        delete ctx->state;
-        ctx->state = nullptr;
+        ctx->state.reset();
     }
 
     delete ctx;
@@ -52,7 +52,7 @@ static bool on_open_dock_clicked(obs_properties_t*, obs_property_t*, void* priv)
 static void* filter_create(obs_data_t* settings, obs_source_t* context) {
     auto* ctx = new SurroundFilterContext();
     ctx->context = context;
-    ctx->state = new FilterState(context);
+    ctx->state = std::make_shared<FilterState>(context);
 
     audio_t* audio = obs_get_audio();
     if (audio) {

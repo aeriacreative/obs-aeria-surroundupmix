@@ -25,11 +25,11 @@ public:
     ~ControlDockWidget() override;
 
     // Called by DockManager when filters are created / destroyed
-    void AddFilterState(FilterState* state);
-    void RemoveFilterState(FilterState* state);
+    void AddFilterState(std::shared_ptr<FilterState> state);
+    void RemoveFilterState(std::shared_ptr<FilterState> state);
 
     // Show this dock and focus on the specified filter in the dropdown
-    void SetActiveFilter(FilterState* state);
+    void SetActiveFilter(std::shared_ptr<FilterState> state);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -48,8 +48,8 @@ private slots:
 
 private:
     // Registered filter states (ordered for combo)
-    std::vector<FilterState*> filter_list_;
-    FilterState* active_state_ = nullptr;
+    std::vector<std::shared_ptr<FilterState>> filter_list_;
+    std::shared_ptr<FilterState> active_state_;
 
     QTimer* meter_timer_ = nullptr;
     bool meter_enabled_       = true;
@@ -80,7 +80,7 @@ private:
     void UpdateChannelVisibility();
     void SyncCombo(); ///< Rebuild combo items from filter_list_ (includes [Global] tags)
 
-    QString FilterDisplayName(FilterState* s) const; ///< Returns name + "[Global]" if not in scene
+    QString FilterDisplayName(const std::shared_ptr<FilterState>& s) const; ///< Returns name + "[Global]" if not in scene
     /// Returns true if @p src appears as a scene item in the current OBS program scene.
     static bool IsSourceInCurrentScene(obs_source_t* src);
 };

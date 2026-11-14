@@ -125,7 +125,7 @@ void DockManager::Shutdown() {
 
 // ─── Filter Registry ─────────────────────────────────────────────────────────
 
-void DockManager::RegisterFilterState(FilterState* state) {
+void DockManager::RegisterFilterState(std::shared_ptr<FilterState> state) {
     if (!state || shutting_down_) return;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -156,12 +156,12 @@ void DockManager::RegisterFilterState(FilterState* state) {
     }
 }
 
-void DockManager::UnregisterFilterState(FilterState* state) {
+void DockManager::UnregisterFilterState(std::shared_ptr<FilterState> state) {
     if (!state) return;
     std::string id = state->GetInstanceId();
 
     // CRITICAL: Erase from active_states_ IMMEDIATELY (thread-safe under mutex)
-    // so RefreshAudioMonitoring's 150ms timer never sees a dangling pointer.
+    // so RefreshAudioMonitoring's 150ms timer never sees a dying pointer.
     {
         std::lock_guard<std::mutex> lock(mutex_);
         active_states_.erase(id);
@@ -170,6 +170,8 @@ void DockManager::UnregisterFilterState(FilterState* state) {
     if (shutting_down_) return; // Docks are already being torn down — skip UI cleanup
 
     // UI cleanup (remove from dock dropdown) must happen on the main thread.
+    // Capturing state by value (shared_ptr) guarantees FilterState stays alive
+    // until RemoveFilterState completes on the UI thread.
     ControlDockWidget* dock = control_dock_;
     auto run_ui_cleanup = [this, dock, state]() {
         if (shutting_down_ || !dock) return;
@@ -185,7 +187,7 @@ void DockManager::UnregisterFilterState(FilterState* state) {
 
 // ─── Dock Control ─────────────────────────────────────────────────────────────
 
-void DockManager::OpenControlDock(FilterState* state) {
+void DockManager::OpenControlDock(std::shared_ptr<FilterState> state) {
     if (!state || shutting_down_) return;
 
     auto run_open = [this, state]() {
@@ -257,7 +259,7 @@ void DockManager::RefreshAudioMonitoring() {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         for (auto& pair : active_states_) {
-            FilterState* state = pair.second;
+            const auto& state = pair.second;
             if (!state) continue;
             obs_source_t* fc = state->GetFilterContext();
             if (fc) {
@@ -305,7 +307,7 @@ void DockManager::OnFrontendEvent(enum obs_frontend_event event) {
         // Find any filter that was visible before OBS closed and restore the dock.
         // The dock geometry is restored automatically by OBS (via objectName).
         // We just need to make it visible and select the right filter.
-        FilterState* state_to_restore = nullptr;
+        std::shared_ptr<FilterState> state_to_restore;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             for (auto& pair : active_states_) {

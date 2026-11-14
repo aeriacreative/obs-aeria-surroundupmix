@@ -4,6 +4,7 @@
 #include "../audio/level-meter.hpp"
 #include "../audio/upmix-engine.hpp"
 #include <mutex>
+#include <memory>
 #include <string>
 #include <functional>
 #include <obs.h>
@@ -14,6 +15,8 @@ class FilterState {
 public:
     explicit FilterState(obs_source_t* filter_context);
     ~FilterState();
+
+    void Detach();
 
     const std::string& GetInstanceId() const { return instance_id_; }
     std::string GetDisplayName() const;

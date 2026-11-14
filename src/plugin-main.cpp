@@ -41,7 +41,7 @@ bool obs_module_load(void) {
         AeriaSurround::DockManager::Instance().Init(main_window);
     }
 
-    obs_frontend_add_tools_menu_item("Sorround Monitor", [](void*) {
+    obs_frontend_add_tools_menu_item("Surround Monitor", [](void*) {
         AeriaSurround::DockManager::Instance().ShowMonitorDock();
     }, nullptr);
 

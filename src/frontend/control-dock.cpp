@@ -48,7 +48,7 @@ ControlDockWidget::ControlDockWidget(QWidget* parent)
 
 ControlDockWidget::~ControlDockWidget() {
     // Clear callbacks on all registered filters to avoid dangling references
-    for (FilterState* s : filter_list_) {
+    for (const auto& s : filter_list_) {
         if (s) s->SetChangeCallback(nullptr);
     }
 }
@@ -74,7 +74,7 @@ bool ControlDockWidget::IsSourceInCurrentScene(obs_source_t* src) {
     return found;
 }
 
-QString ControlDockWidget::FilterDisplayName(FilterState* s) const {
+QString ControlDockWidget::FilterDisplayName(const std::shared_ptr<FilterState>& s) const {
     if (!s) return "(Unknown)";
     QString base = QString::fromStdString(s->GetDisplayName()); // already ref-safe
 
@@ -98,10 +98,10 @@ QString ControlDockWidget::FilterDisplayName(FilterState* s) const {
     return base;
 }
 
-void ControlDockWidget::AddFilterState(FilterState* state) {
+void ControlDockWidget::AddFilterState(std::shared_ptr<FilterState> state) {
     if (!state) return;
     // Guard against duplicates
-    for (auto* s : filter_list_) { if (s == state) return; }
+    for (const auto& s : filter_list_) { if (s == state) return; }
 
     filter_list_.push_back(state);
     SyncCombo();
@@ -112,13 +112,12 @@ void ControlDockWidget::AddFilterState(FilterState* state) {
     }
 }
 
-void ControlDockWidget::RemoveFilterState(FilterState* state) {
+void ControlDockWidget::RemoveFilterState(std::shared_ptr<FilterState> state) {
     if (!state) return;
 
     bool was_active = (active_state_ == state);
     if (was_active) {
-        state->SetChangeCallback(nullptr);
-        active_state_ = nullptr;
+        active_state_.reset();
     }
 
     filter_list_.erase(
@@ -139,7 +138,7 @@ void ControlDockWidget::RemoveFilterState(FilterState* state) {
     }
 }
 
-void ControlDockWidget::SetActiveFilter(FilterState* state) {
+void ControlDockWidget::SetActiveFilter(std::shared_ptr<FilterState> state) {
     if (active_state_ == state) {
         // Same filter: just sync combo selection and return
         SyncCombo();
@@ -162,9 +161,14 @@ void ControlDockWidget::SetActiveFilter(FilterState* state) {
     }
 
     // Attach new state: receive param changes from DSP/filter
-    state->SetChangeCallback([this](const UpmixParams&) {
-        QMetaObject::invokeMethod(this, [this]() {
-            LoadFromState();
+    std::weak_ptr<FilterState> weak_state = state;
+    state->SetChangeCallback([this, weak_state](const UpmixParams&) {
+        QMetaObject::invokeMethod(this, [this, weak_state]() {
+            if (auto s = weak_state.lock()) {
+                if (active_state_ == s) {
+                    LoadFromState();
+                }
+            }
         }, Qt::QueuedConnection);
     });
 
@@ -531,17 +535,18 @@ void ControlDockWidget::LoadFromState() {
 // ─── Slots ───────────────────────────────────────────────────────────────────
 
 void ControlDockWidget::OnMeterTimer() {
-    if (!active_state_ || !meter_enabled_) return;
+    auto state = active_state_;
+    if (!state || !meter_enabled_) return;
 
-    UpmixMode mode = active_state_->GetParams().mode;
+    UpmixMode mode = state->GetParams().mode;
     size_t active_ch = GetMasterOutputChannels(mode);
 
     // Detect if the source is actually outputting audio.
     // If not, pass decay_idle=true so the meter bars fall back to silence
-    // naturally — matching OBS Audio Mixer and Sorround Monitor behaviour.
+    // naturally — matching OBS Audio Mixer and Surround Monitor behaviour.
     bool audio_active = false;
     {
-        obs_source_t* fc = active_state_->GetFilterContext();
+        obs_source_t* fc = state->GetFilterContext();
         if (fc) {
             obs_source_t* filter_ref = obs_source_get_ref(fc);
             if (filter_ref) {
@@ -555,7 +560,7 @@ void ControlDockWidget::OnMeterTimer() {
     }
 
     ChannelMeterData levels[METER_MAX_CHANNELS];
-    active_state_->GetMeter().GetSnapshot(levels, METER_MAX_CHANNELS, /*decay_idle=*/!audio_active);
+    state->GetMeter().GetSnapshot(levels, METER_MAX_CHANNELS, /*decay_idle=*/!audio_active);
 
     panner_->SetChannelLevels(levels, active_ch);
     for (auto* strip : strips_) {
@@ -568,7 +573,7 @@ void ControlDockWidget::OnSourceComboChanged(int index) {
     if (updating_from_state_) return;
     if (index < 0 || index >= (int)filter_list_.size()) return;
 
-    FilterState* new_state = filter_list_[index];
+    const auto& new_state = filter_list_[index];
     if (new_state == active_state_) return;
 
     SetActiveFilter(new_state);
@@ -642,10 +647,11 @@ void ControlDockWidget::OnOpenFilterSettings() {
 // "Active" is determined by obs_source_audio_active(), which returns true when
 // the source is actually outputting audio (not muted, not hidden).
 void ControlDockWidget::OnJumpToActiveSource() {
-    FilterState* scene_match  = nullptr; // Best candidate: scene source
-    FilterState* global_match = nullptr; // Fallback: global audio source
+    std::shared_ptr<FilterState> scene_match;  // Best candidate: scene source
+    std::shared_ptr<FilterState> global_match; // Fallback: global audio source
 
-    for (FilterState* state : filter_list_) {
+    for (const auto& state : filter_list_) {
+        if (!state) continue;
         obs_source_t* fc = state->GetFilterContext();
         if (!fc) continue;
 
@@ -668,7 +674,7 @@ void ControlDockWidget::OnJumpToActiveSource() {
     }
 
     // Pick the best candidate: scene source first, global audio as fallback
-    FilterState* best = scene_match ? scene_match : global_match;
+    auto best = scene_match ? scene_match : global_match;
     if (best && best != active_state_) {
         SetActiveFilter(best);
     }

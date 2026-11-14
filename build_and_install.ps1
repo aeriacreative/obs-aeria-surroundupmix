@@ -11,7 +11,7 @@ if (-not (Test-Path $ObsPortableDir)) {
     if ($DetectedObs) { $ObsPortableDir = $DetectedObs.FullName }
 }
 $DistDir = Join-Path $PluginDir "dist"
-$Version = "0.1.3"
+$Version = "0.1.4"
 
 # Locate CMake
 $CMakeExe = "cmake"
@@ -75,35 +75,49 @@ if (Test-Path $DataLocaleDir) {
     Write-Host "  -> Installed Data/Locale to $TargetLocaleDir" -ForegroundColor Green
 }
 
-# 4. Create ZIP package in dist
-Write-Host "[4/4] Creating distribution ZIP package..." -ForegroundColor Yellow
+# 4. Create ZIP distribution packages in dist
+Write-Host "[4/4] Creating distribution ZIP packages..." -ForegroundColor Yellow
 if (-not (Test-Path $DistDir)) {
     New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 }
 
-$ZipStagingDir = Join-Path $DistDir "staging"
-if (Test-Path $ZipStagingDir) {
-    Remove-Item -Path $ZipStagingDir -Recurse -Force
-}
+# 4A. Standard / Portable package (obs-plugins/64bit + data/obs-plugins/aeria-surroundupmix)
+$StagingStandard = Join-Path $DistDir "staging_standard"
+if (Test-Path $StagingStandard) { Remove-Item -Path $StagingStandard -Recurse -Force }
 
-$StagingDllDir  = Join-Path $ZipStagingDir "obs-plugins\64bit"
-$StagingDataDir = Join-Path $ZipStagingDir "data\obs-plugins\aeria-surroundupmix\locale"
-New-Item -ItemType Directory -Path $StagingDllDir -Force | Out-Null
-New-Item -ItemType Directory -Path $StagingDataDir -Force | Out-Null
+$StdDllDir  = Join-Path $StagingStandard "obs-plugins\64bit"
+$StdDataDir = Join-Path $StagingStandard "data\obs-plugins\aeria-surroundupmix\locale"
+New-Item -ItemType Directory -Path $StdDllDir  -Force | Out-Null
+New-Item -ItemType Directory -Path $StdDataDir -Force | Out-Null
 
-Copy-Item $BuiltDll -Destination $StagingDllDir -Force
-if (Test-Path $BuiltPdb) { Copy-Item $BuiltPdb -Destination $StagingDllDir -Force }
-Copy-Item "$DataLocaleDir\*" -Destination $StagingDataDir -Recurse -Force
+Copy-Item $BuiltDll -Destination $StdDllDir -Force
+if (Test-Path $BuiltPdb) { Copy-Item $BuiltPdb -Destination $StdDllDir -Force }
+Copy-Item "$DataLocaleDir\*" -Destination $StdDataDir -Recurse -Force
 
-$ZipOutput = Join-Path $DistDir "aeria-surroundupmix-v$Version-windows-x64.zip"
-if (Test-Path $ZipOutput) {
-    Remove-Item $ZipOutput -Force
-}
+$StandardZip = Join-Path $DistDir "aeria-surroundupmix-v$Version-windows-x64.zip"
+if (Test-Path $StandardZip) { Remove-Item $StandardZip -Force }
+Compress-Archive -Path "$StagingStandard\*" -DestinationPath $StandardZip -Force
+Remove-Item -Path $StagingStandard -Recurse -Force
+Write-Host "  -> Created Standard/Portable ZIP: $StandardZip" -ForegroundColor Green
 
-Compress-Archive -Path "$ZipStagingDir\*" -DestinationPath $ZipOutput -Force
-Remove-Item -Path $ZipStagingDir -Recurse -Force
+# 4B. ProgramData Standalone package (aeria-surroundupmix/bin/64bit + aeria-surroundupmix/data)
+$StagingProgramData = Join-Path $DistDir "staging_programdata"
+if (Test-Path $StagingProgramData) { Remove-Item -Path $StagingProgramData -Recurse -Force }
 
-Write-Host "  -> Created ZIP package: $ZipOutput" -ForegroundColor Green
+$PdDllDir  = Join-Path $StagingProgramData "aeria-surroundupmix\bin\64bit"
+$PdDataDir = Join-Path $StagingProgramData "aeria-surroundupmix\data\locale"
+New-Item -ItemType Directory -Path $PdDllDir  -Force | Out-Null
+New-Item -ItemType Directory -Path $PdDataDir -Force | Out-Null
+
+Copy-Item $BuiltDll -Destination $PdDllDir -Force
+if (Test-Path $BuiltPdb) { Copy-Item $BuiltPdb -Destination $PdDllDir -Force }
+Copy-Item "$DataLocaleDir\*" -Destination $PdDataDir -Recurse -Force
+
+$ProgramDataZip = Join-Path $DistDir "aeria-surroundupmix-v$Version-programdata-x64.zip"
+if (Test-Path $ProgramDataZip) { Remove-Item $ProgramDataZip -Force }
+Compress-Archive -Path "$StagingProgramData\*" -DestinationPath $ProgramDataZip -Force
+Remove-Item -Path $StagingProgramData -Recurse -Force
+Write-Host "  -> Created ProgramData Standalone ZIP: $ProgramDataZip" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=============================================" -ForegroundColor Green

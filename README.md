@@ -1,7 +1,7 @@
 # Aeria Surround Upmix for OBS Studio
 
-[![Version](https://img.shields.io/badge/version-0.1.3-blue.svg)](https://github.com/aeriacreative/obs-aeria-surroundupmix)
-[![OBS Studio](https://img.shields.io/badge/OBS%20Studio-30%20|%2031%20|%2032+-green.svg)](https://obsproject.com)
+[![Version](https://img.shields.io/badge/version-0.1.4-blue.svg)](https://github.com/aeriacreative/obs-aeria-surroundupmix)
+[![OBS Studio](https://img.shields.io/badge/OBS%20Studio-30%20|%2031%20|%2032%20|%2033+-green.svg)](https://obsproject.com)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg)](LICENSE)
 [![Creator](https://img.shields.io/badge/Created%20by-Aeria%20Creative-00d2ff.svg)](https://linktr.ee/aeriacreative)
@@ -58,10 +58,39 @@ Developed by [**Aeria Creative**](https://linktr.ee/aeriacreative).
 
 ## 📦 Installation
 
-### Pre-built Binary (Recommended)
-1. Download the latest release `.zip` (`aeria-surroundupmix-vX.X.X-windows-x64.zip`) from the [Releases](https://github.com/aeriacreative/obs-aeria-surroundupmix/releases) section.
-2. Close **OBS Studio** if it is running.
-3. Extract the contents directly into your OBS Studio root directory (e.g. `C:\Program Files\obs-studio\`):
+Choose the package that suits your setup:
+
+### Option A: ProgramData (Recommended for Standard OBS Installer)
+This keeps plugins isolated from OBS program updates so they never get deleted when updating OBS Studio.
+
+1. Download `aeria-surroundupmix-vX.X.X-programdata-x64.zip` from [Releases](https://github.com/aeriacreative/obs-aeria-surroundupmix/releases).
+2. Close **OBS Studio** if running.
+3. Extract the `aeria-surroundupmix` folder directly into:
+   ```text
+   C:\ProgramData\obs-studio\plugins\
+   ```
+   *(Press `Win + R`, paste `%ProgramData%\obs-studio\plugins` and hit Enter. Create the `plugins` folder if it does not exist)*.
+4. Final structure:
+   ```text
+   C:\ProgramData\obs-studio\plugins\
+   └── aeria-surroundupmix\
+       ├── bin\64bit\
+       │   ├── aeria-surroundupmix.dll
+       │   └── aeria-surroundupmix.pdb
+       └── data\locale\
+           ├── en-US.ini
+           └── id-ID.ini
+   ```
+5. Launch OBS Studio.
+
+---
+
+### Option B: Standard / Portable OBS (Program Files or Portable Folder)
+Best for portable OBS setups or traditional plugin directory placement.
+
+1. Download `aeria-surroundupmix-vX.X.X-windows-x64.zip` from [Releases](https://github.com/aeriacreative/obs-aeria-surroundupmix/releases).
+2. Close **OBS Studio** if running.
+3. Extract the contents directly into your OBS Studio root directory (e.g. `C:\Program Files\obs-studio\` or your Portable OBS folder):
    ```text
    obs-studio/
    ├── obs-plugins/

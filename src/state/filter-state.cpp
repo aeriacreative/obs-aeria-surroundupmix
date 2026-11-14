@@ -28,8 +28,13 @@ FilterState::FilterState(obs_source_t* filter_context)
 }
 
 FilterState::~FilterState() {
+    Detach();
+}
+
+void FilterState::Detach() {
     std::lock_guard<std::mutex> lock(cb_mutex_);
     on_change_cb_ = nullptr;
+    filter_context_ = nullptr;
 }
 
 std::string FilterState::GetDisplayName() const {
